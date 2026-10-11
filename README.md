@@ -1,74 +1,174 @@
-# OpenWrt
+# luci-app-mclash
 
-Mclash 的 LuCI 客户端。使用说明见 [插件说明](luci-app-mclash/README.md)。五个页面为基础设置、节点与规则、运行配置、日志和更新内核；代理面板通过基础设置中的卡片跳转打开，六项机场覆写复用现有客户端的配置处理逻辑。
+面向 OpenWrt 的 Mihomo LuCI 插件，提供代理接管、订阅与节点管理、配置覆写、运行日志和内核更新。代理面板使用 Zashboard，点击卡片在新窗口打开。
 
-本目录包含独立 OpenWrt 客户端的全部源码、构建脚本及配置处理依赖。
+## 功能与页面
 
-## 目录结构
+| 页面 | 功能 |
+| --- | --- |
+| 基础设置 | 点击启停、代理面板、站点连通性与出口 IP 检测；TUN／TProxy、局域网设备、代理范围与访问控制、控制接口 |
+| 节点与规则 | 机场订阅、添加节点、修改 Host、前置链式节点、代理组、规则集和规则管理 |
+| 运行配置 | 只读查看 YAML，进入页面自动刷新，长行横向滚动 |
+| 日志 | 查看、刷新和清空服务、内核及更新日志，自动限制文件大小 |
+| 更新内核 | 检查更新、在线更新、上传更新；校验失败保留原内核 |
+
+配置修改前须停止服务。内核更新可在运行时进行：下载和校验后停服替换，成功恢复运行，失败回滚；停止状态更新后保持停止。
+
+## 页面截图
+
+以下为界面示例，配置与日志内容使用演示数据。实际布局随 LuCI 主题和屏幕宽度调整。
+
+### 基础设置
+
+![基础设置](docs/screenshots/basic-settings.png)
+
+### 节点与规则
+
+![节点与规则](docs/screenshots/nodes-rules.png)
+
+### 运行配置
+
+![运行配置](docs/screenshots/runtime-config.png)
+
+### 日志
+
+![日志](docs/screenshots/logs.png)
+
+### 更新内核
+
+![更新内核](docs/screenshots/core-update.png)
+
+## 适用环境
+
+需要 LuCI 与 firewall4／nftables，不支持 fw3／iptables。插件使用 JS 和 shell，软件包架构为 `all`／`noarch`；Mihomo 内核需要匹配路由器 CPU 架构，安装包不包含内核。
+
+APK 和 IPK 不能互换，安装时按设备实际包管理器选择，并确保当前固件的软件源可提供插件依赖，包括 `kmod-tun` 和 `kmod-nft-tproxy`。首次使用可在「更新内核」中在线安装，或上传 [Mihomo 官方发布页](https://github.com/MetaCubeX/mihomo/releases) 中对应架构的文件。
+
+## 编译进 OpenWrt 固件
+
+先准备与目标设备匹配的 OpenWrt／ImmortalWrt 源码及 Linux 构建环境。基础构建步骤可参考 [OpenWrt 官方说明](https://github.com/openwrt/openwrt/blob/main/README.md)。在固件源码根目录执行：
+
+```sh
+./scripts/feeds update -a
+./scripts/feeds install -a
+
+mclash_source="$(mktemp -d)"
+git clone --depth 1 https://github.com/liuyi-htu/luci-app-mclash.git "$mclash_source"
+mkdir -p package/luci-app-mclash
+cp -a "$mclash_source/luci-app-mclash/." package/luci-app-mclash/
+
+make menuconfig
+```
+
+复制的是仓库内的 **`luci-app-mclash/` 软件包目录**。在 `menuconfig` 中选择设备目标，进入 **LuCI → Applications → luci-app-mclash**（也可按 `/` 搜索包名）。选为 `<*>` 编译进固件，选为 `<M>` 生成单独安装包。
+
+编译固件：
+
+```sh
+make defconfig
+make -j"$(nproc)"
+```
+
+只编译插件：
+
+```sh
+make defconfig
+make package/luci-app-mclash/compile V=s -j"$(nproc)"
+```
+
+固件位于 `bin/targets/`，插件包通常位于 `bin/packages/`。首次编译会构建依赖；出错时可用 `-j1 V=s` 查看具体错误。若已经安装了 feeds 中的同名包，请先移除重复的软件包来源。
+
+## 使用 SDK 构建安装包
+
+在 Linux x86_64 上准备 OpenWrt SDK 所需构建依赖，以及 Node.js、Python 3、BusyBox、curl、rsync、zstd：
+
+```sh
+git clone https://github.com/liuyi-htu/luci-app-mclash.git
+cd luci-app-mclash
+
+./build-openwrt.sh arm64
+# 或
+./build-openwrt.sh x86_64
+# 两种一起构建：./build-openwrt.sh all
+```
+
+脚本下载并校验固定 SDK：`arm64` 使用 ImmortalWrt 25.12.1 filogic SDK，生成 APK；`x86_64` 使用 ImmortalWrt 24.10.4 SDK，生成 IPK。这两个选项表示构建所用 SDK，插件本身不含对应架构的 Mihomo 内核。其他固件版本建议使用其匹配 SDK 或固件源码编译。
+
+生成的安装包及同名 `.sha256` 文件位于 `dist/`，验证记录位于 `.build-logs/`，缓存位于 `.build-cache/`。默认版本为 `1.0.0`，构建号为 `1`。
+
+| 环境变量 | 用途 |
+| --- | --- |
+| `APP_VERSION`、`BUILD_NUMBER` | 覆盖 `VERSION` 中的版本与构建号 |
+| `MCLASH_OPENWRT_CACHE` | 指定 SDK 与下载缓存目录 |
+| `MCLASH_SDK_DIR` | 使用已有的、与目标固件匹配的可写 SDK |
+
+源码已包含编译后的配置处理 JS，正常打包无需 Dart。修改 `overrides/` 后，先安装符合其 `pubspec.yaml` 要求的 Dart，再运行 `./build-overrides.sh` 生成配置模块，然后重新打包。
+
+## 直接安装 APK／IPK
+
+已取得编译好的安装包时，可以直接安装，无需编译固件。当前仓库提供源码；安装包可由上述 SDK 或固件编译步骤生成。以下以 `1.0.0-r1` 为例，文件名和路由器地址请替换为实际值。
+
+### APK 设备
+
+电脑上传安装包与校验文件：
+
+```sh
+scp -O dist/luci-app-mclash-1.0.0-r1.apk dist/luci-app-mclash-1.0.0-r1.apk.sha256 root@192.168.1.1:/tmp/
+```
+
+登录路由器后执行：
+
+```sh
+cd /tmp
+sha256sum -c luci-app-mclash-1.0.0-r1.apk.sha256
+apk update
+apk add --allow-untrusted /tmp/luci-app-mclash-1.0.0-r1.apk
+/etc/init.d/rpcd restart
+```
+
+### IPK 设备
+
+电脑上传安装包与校验文件：
+
+```sh
+scp -O dist/luci-app-mclash_1.0.0-r1_all.ipk dist/luci-app-mclash_1.0.0-r1_all.ipk.sha256 root@192.168.1.1:/tmp/
+```
+
+登录路由器后执行：
+
+```sh
+cd /tmp
+sha256sum -c luci-app-mclash_1.0.0-r1_all.ipk.sha256
+opkg update
+opkg install /tmp/luci-app-mclash_1.0.0-r1_all.ipk
+/etc/init.d/rpcd restart
+```
+
+校验须通过后再安装。也可通过 LuCI 的软件包页面上传安装包。安装完成后强制刷新浏览器，打开 **服务 → Mclash**。
+
+## 首次使用
+
+1. 在「更新内核」安装匹配设备架构的 Mihomo。
+2. 在「节点与规则」添加机场订阅或节点，设置代理组与规则。
+3. 在「基础设置」选择接管方式、局域网设备和代理范围。默认关闭自动接管。
+4. 点击启停卡片启动服务；需要选择节点时点击代理面板卡片。
+
+运行配置保存在 `/etc/mclash/config.yaml`，默认控制接口为 `0.0.0.0:9097`，可在基础设置中调整。详细接管、DNS、日志与卸载说明见 [使用说明](luci-app-mclash/README.md)。
+
+## 源码结构
 
 ```text
 luci-app-mclash/
-├── README.md               # 客户端结构、构建与验证说明
-├── VERSION                 # 默认应用版本与构建号
-├── build-overrides.sh      # 编译配置处理模块，生成 JS 与初始 YAML
-├── build-openwrt.sh        # SDK 构建、包检查与产物收集入口
-├── overrides/              # Dart 配置处理源码与锁定依赖，构建时需要
-│   ├── bin/                # 配置桥接与 OpenWrt 网络配置逻辑
-│   ├── lib/shared/         # 从 Mclash 迁入的共享 Dart 依赖
-│   ├── default-config.yaml # 初始配置模板
-│   ├── pubspec.yaml
-│   └── pubspec.lock
-├── luci-app-mclash/        # 标准 OpenWrt/LuCI 软件包源码
-│   ├── Makefile            # 包元数据、依赖与安装规则
-│   ├── htdocs/             # LuCI 页面、配置处理 JS、图标与 Zashboard
-│   ├── root/               # 安装到路由器的服务、辅助脚本、配置与 ACL
-│   └── tests/              # 前后端、覆写、更新、网络与交付包检查
-├── dist/                   # 当前交付安装包及同名 SHA256（本地生成）
-│   ├── README.md           # 当前包命名、用途和校验说明
-│   └── archive/            # 本地历史安装包
-│       ├── legacy/<版本-r构建号>/    # 旧命名安装包及同名校验文件
-│       └── replaced/<版本-r构建号>/  # 同名重建前的安装包，以摘要区分
-└── .build-logs/             # 包元数据与验证结果（本地生成）
+├── VERSION                 # 版本与构建号
+├── build-openwrt.sh         # SDK 构建入口
+├── build-overrides.sh       # 配置处理模块编译入口
+├── overrides/              # Dart 配置处理源码、默认 YAML 与锁定依赖
+├── luci-app-mclash/         # 标准 LuCI 软件包目录
+│   ├── Makefile
+│   ├── htdocs/             # 页面、配置模块、图标与 Zashboard
+│   ├── root/               # 服务、辅助脚本、配置与 ACL
+│   └── tests/              # 验证脚本
+└── docs/screenshots/        # 页面截图
 ```
 
-`dist/` 与 `.build-logs/` 已忽略，不属于交付源码；历史包保留在归档目录中。SDK、下载缓存和 Dart 编译临时副本放在本项目专用的 `.build-cache/`，作为忽略的本地构建缓存。`overrides/` 是源码，`luci-app-mclash/htdocs/luci-static/resources/mclash/overrides.js` 是随包提供的编译结果，两者都需要保留，以支持后续修改及独立项目重建。
-
-## 构建
-
-需要 Linux x86_64、Dart、Node.js、Python 3、BusyBox、curl、rsync、zstd 和 OpenWrt SDK 构建依赖。使用项目的 Flutter 所附 Dart 即可。
-
-在本项目根目录执行：
-
-```sh
-./build-overrides.sh
-./build-openwrt.sh all
-# 也可只构建 arm64 或 x86_64
-```
-
-第一步在专用缓存副本中安装 Dart 依赖，将现有 Dart 配置模块编译到插件的 `mclash/overrides.js`，从共享默认配置生成 `mclash/template.js`。修改被复用的模块后需要重新执行。已编译文件随源码提供，SDK 构建本身不需要 Dart。
-
-第二步下载并核对固定 SDK 的 SHA256，更新依赖并构建。ARM64 使用 ImmortalWrt 25.12.1 filogic SDK，生成 APK；x86_64 使用 24.10.4 SDK，生成 IPK。默认缓存位于本项目的 `.build-cache`，产物及 SHA256 位于 `dist/`，检查记录位于 `.build-logs/`。
-
-版本默认读取 `VERSION`；可用 `APP_VERSION` 和 `BUILD_NUMBER` 覆盖。`MCLASH_OPENWRT_CACHE` 指定缓存目录，`MCLASH_SDK_DIR` 指定本客户端专用的可写 SDK，`MCLASH_PACKAGE_ONLY=1` 用于已有完整编译工具但缺少依赖源码的缓存 SDK，仅直接打包插件。安装时仍需由软件源解析依赖。
-
-## 独立项目
-
-OpenWrt 客户端已从 Mclash 仓库迁出。构建所需共享 Dart 文件位于 `overrides/lib/shared/`，默认 YAML 位于 `overrides/default-config.yaml`；不依赖旧 Mclash 源码目录。这里只进行本地构建，原 Mclash 仓库的 OpenWrt Actions 路径不再适用于此目录。
-
-## 接管集成验证
-
-`luci-app-mclash/tests/network_integration.py` 使用 Linux 用户和网络命名空间，创建独立 LAN／WAN veth、TCP／UDP／DNS 测试服务，并启动真实 Mihomo。所有 nftables 和路由操作仅发生在隔离网络命名空间中。需要允许 `unshare -Urn`、`nsenter`，并提供原生 nftables、ip、BusyBox 与 Node.js。
-
-```sh
-MCLASH_TEST_CORE=/path/to/verified/mihomo \
-MCLASH_TEST_JSHN=/path/to/sdk/staging_dir/host \
-python3 luci-app-mclash/tests/network_integration.py
-```
-
-`MCLASH_TEST_JSHN` 目录须提供可运行的原生 `bin/jshn` 和 `share/libubox/jshn.sh`。不设置这些变量时跳过真实网络测试。SDK 打包会执行后端、前端和真实编译覆写模块的检查，并验证交付包的全部脚本。
-
-状态卡片点击后查询外部出口 IP、地区及对应站点 HTTPS 请求耗时，检测目标为 Telegram、OpenAI（chatgpt.com）、阿里、谷歌、GitHub 和 YouTube。出口信息分别由国内／国外 IP 查询接口提供，自定义分流规则可能使查询接口与目标站点使用不同出口。检测可选择路由器或浏览器网络，不显式经当前混合端口及路由规则查询；设备自身的透明代理、VPN 或浏览器代理仍可能影响出口；部分失败会保留已成功的 IP 或延迟结果。
-
-安装包采用 OpenWrt 标准文件名：`luci-app-mclash-<版本>-r<构建号>.apk`、`luci-app-mclash_<版本>-r<构建号>_all.ipk`，对应 `.sha256` 文件内记录同名产物。
-
-测试入口与职责见 [测试说明](luci-app-mclash/tests/README.md)，安装包分类和校验见 [产物说明](dist/README.md)。构建入口禁用 Python 字节码缓存写入，源码目录不保存 `__pycache__/`。
+开发验证见 [测试说明](luci-app-mclash/tests/README.md)，配置模块见 [模块说明](overrides/README.md)。许可与第三方署名见 [LICENSE](luci-app-mclash/LICENSE) 和 [NOTICE](luci-app-mclash/NOTICE)。
