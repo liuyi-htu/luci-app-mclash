@@ -48,6 +48,7 @@ mkdir -p "$package_dir"
 [[ "$(realpath "$package_dir")" == "$sdk/package/luci-app-mclash" ]] || exit 1
 python3 "$client_root/luci-app-mclash/tests/backend_test.py"
 python3 "$client_root/luci-app-mclash/tests/timeout_test.py"
+python3 "$client_root/luci-app-mclash/tests/init_test.py"
 python3 "$client_root/luci-app-mclash/tests/probe_test.py"
 node "$client_root/luci-app-mclash/tests/frontend_test.js"
 node "$client_root/luci-app-mclash/tests/browser_probe_test.js"

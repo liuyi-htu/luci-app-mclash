@@ -12,6 +12,7 @@
 | log_test.py | 日志大小限制与读取 |
 | update_test.py | 内核更新、校验及回滚 |
 | timeout_test.py | 无系统 timeout 依赖的超时终止、退出码及取消清理 |
+| init_test.py | 无系统 timeout 时启动与重载校验、错误配置禁止启动 |
 | network_integration.py | 隔离网络命名空间中的真实接管测试 |
 | package_check.py | SDK 产物版本、文件、权限、命名与收集 |
 

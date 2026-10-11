@@ -62,7 +62,7 @@ case "$1" in
 esac
 case "$1" in
  cancel-fetch)
-  read -r owner_pid owner_stamp owner_action < "$LOCK/owner" 2>/dev/null || { printf '没有正在拉取的订阅\n'; exit 0; }
+  read -r owner_pid owner_stamp owner_action 2>/dev/null < "$LOCK/owner" || { printf '没有正在拉取的订阅\n'; exit 0; }
   [ "$owner_action" = fetch-subscription ] || fail '当前操作不是订阅拉取'
   case "$owner_pid" in ''|*[!0-9]*) fail '订阅进程无效' ;; esac
   if [ "$(mclash_lock_stamp "$owner_pid")" = "$owner_stamp" ]; then kill -TERM "$owner_pid" 2>/dev/null || true; fi

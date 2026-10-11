@@ -4,20 +4,29 @@ mclash_lock_claim() { printf '%s %s %s\n' "$$" "$(mclash_lock_stamp $$)" "$1" > 
 mclash_lock_acquire() {
  mkdir -p /var/lock
  if ! mkdir "$LOCK" 2>/dev/null; then
-  read -r owner_pid owner_stamp owner_action < "$LOCK/owner" 2>/dev/null || owner_pid=''
+  read -r owner_pid owner_stamp owner_action 2>/dev/null < "$LOCK/owner" || owner_pid=''
   case "$owner_pid" in ''|*[!0-9]*)
-   age=$(($(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || date +%s)))
-   [ "$age" -gt 10 ] || return 1 ;;
+   # Some OpenWrt images have no stat applet. Observe ownerless locks for
+   # ten seconds before recovering; never steal a lock still being claimed.
+   local now since
+   now="$(date +%s)"
+   (set -C; printf '%s\n' "$now" > "$LOCK/orphan-since") 2>/dev/null || true
+   read -r since 2>/dev/null < "$LOCK/orphan-since" || return 1
+   case "$since" in ''|*[!0-9]*) return 1 ;; esac
+   [ "$((now - since))" -gt 10 ] || return 1
+   read -r owner_pid owner_stamp owner_action 2>/dev/null < "$LOCK/owner" || owner_pid=''
+   case "$owner_pid" in ''|*[!0-9]*) ;; *) return 1 ;; esac
+   ;;
    *) [ "$(mclash_lock_stamp "$owner_pid")" != "$owner_stamp" ] || return 1 ;;
   esac
-  rm -f "$LOCK/owner"
+  rm -f "$LOCK/owner" "$LOCK/orphan-since"
   rmdir "$LOCK" 2>/dev/null && mkdir "$LOCK" 2>/dev/null || return 1
  fi
  mclash_lock_claim "$1"
 }
 mclash_lock_release() {
- read -r owner_pid owner_stamp owner_action < "$LOCK/owner" 2>/dev/null || return 1
+ read -r owner_pid owner_stamp owner_action 2>/dev/null < "$LOCK/owner" || return 1
  [ "$owner_pid" = "$$" ] || return 1
- rm -f "$LOCK/owner"
+ rm -f "$LOCK/owner" "$LOCK/orphan-since"
  rmdir "$LOCK" 2>/dev/null
 }

@@ -169,6 +169,25 @@ exit 1
         self.assertEqual(self.run_command('fetch-subscription').returncode,0)
         self.assertFalse(self.lock.exists())
 
+    def test_ownerless_lock_recovers_without_stat(self):
+        self.lock.mkdir()
+        fakebin = self.base / 'no-stat'
+        fakebin.mkdir()
+        stat = fakebin / 'stat'
+        stat.write_text('#!/bin/sh\nexit 127\n')
+        stat.chmod(0o755)
+        env = dict(os.environ, PATH=str(fakebin) + ':' + os.environ['PATH'])
+        def disable():
+            return subprocess.run(['busybox', 'ash', str(self.script), 'disable'], env=env,
+                                  capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(disable().returncode, 0)
+        self.assertFalse(self.calls.exists())
+        (self.lock / 'orphan-since').write_text(str(int(time.time()) - 11) + '\n')
+        result = disable()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls.read_text(), 'disable\n')
+        self.assertFalse(self.lock.exists())
+
     def test_cancel_download_terminates_and_releases_lock(self):
         (self.base/'url').write_text('https://example.org/test')
         (self.base/'curl').write_text('#!/bin/sh\nprintf "%s" "$$" > ' + str(self.base/'curl.pid') + '\nexec sleep 20\n')
@@ -182,6 +201,12 @@ exit 1
         process.communicate(timeout=5)
         self.assertFalse(self.lock.exists()); self.assertFalse(list(self.base.glob('fetch.*')))
         self.assertFalse(Path('/proc/'+(self.base/'curl.pid').read_text()).exists())
+
+    def test_cancel_without_download_does_not_emit_shell_errors(self):
+        result = self.run_command('cancel-fetch')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '没有正在拉取的订阅\n')
+        self.assertEqual(result.stderr, '')
 
     def test_subscription_hard_timeout_releases_lock(self):
         (self.base/'url').write_text('https://example.org/test')

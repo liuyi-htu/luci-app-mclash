@@ -12,7 +12,7 @@ start_service() {
 	umask 077
 	chmod 0700 /etc/mclash
 	chmod 0600 /etc/mclash/config.yaml
-	if ! timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1; then
+	if ! /usr/libexec/mclash-timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1; then
 		logger -t mclash 'Configuration validation failed; service not started'
 		service_log '配置校验失败或超时，未启动服务'
 		return 1
@@ -36,7 +36,7 @@ stop_service() {
 
 reload_service() {
 	# Validate before stopping the running instance.
-	timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1 || return 1
+	/usr/libexec/mclash-timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1 || return 1
 	stop
 	start
 }
