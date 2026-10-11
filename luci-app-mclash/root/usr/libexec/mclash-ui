@@ -10,6 +10,7 @@ CANDIDATE=''
 REQUEST=/etc/mclash/api.request.json
 URLFILE=/etc/mclash/subscription.url
 CURL=/usr/bin/curl
+TIMEOUT=/usr/libexec/mclash-timeout
 FETCH=''; FETCH_PID=''
 . /usr/libexec/mclash-lock
 
@@ -32,7 +33,7 @@ running() {
 core_version() {
  [ -x "$CORE" ] || return 1
  local value
- value="$(timeout 5 "$CORE" -v 2>/dev/null)" || return 1
+ value="$("$TIMEOUT" 5 "$CORE" -v 2>/dev/null)" || return 1
  case "$value" in Mihomo\ *) printf '%s\n' "$value" | head -n 1 ;; *) return 1 ;; esac
 }
 validate() {
@@ -42,7 +43,7 @@ validate() {
 	[ -s "$1" ] || fail '配置不能为空'
 	[ "$(wc -c < "$1")" -le 1048576 ] || fail '配置不能超过 1 MiB'
 	# Core diagnostics may contain secrets: expose only a generic result.
-	timeout 30 "$CORE" -t -d /etc/mclash -f "$1" >/dev/null 2>&1 || fail 'Mihomo 配置校验失败或超时，请检查 YAML、节点及规则资源'
+	"$TIMEOUT" 30 "$CORE" -t -d /etc/mclash -f "$1" >/dev/null 2>&1 || fail 'Mihomo 配置校验失败或超时，请检查 YAML、节点及规则资源'
 }
 lock() {
 	mkdir -p /var/lock
@@ -126,7 +127,7 @@ case "$1" in
 		case "$url" in http://*|https://*) ;; *) fail '订阅地址须为 HTTP 或 HTTPS' ;; esac
 		[ "$(printf '%s' "$url" | tr -d '\r\n')" = "$url" ] || fail '每次只能下载一个订阅'
 		FETCH="$(mktemp /tmp/mclash-subscription.XXXXXX)" || fail '无法创建下载文件'
-		timeout -s KILL 25 "$CURL" --fail --silent --location --connect-timeout 5 --max-time 20 --max-filesize 1048576 \
+		"$TIMEOUT" 25 "$CURL" --fail --silent --location --connect-timeout 5 --max-time 20 --max-filesize 1048576 \
 			--proto '=http,https' --proto-redir '=http,https' --user-agent clash.meta \
 			--output "$FETCH" "$url" &
   FETCH_PID=$!

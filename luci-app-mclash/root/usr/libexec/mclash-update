@@ -6,6 +6,7 @@ INIT=/etc/init.d/mclash
 UI=/usr/libexec/mclash-ui
 CONFIG=/etc/mclash/config.yaml
 CURL=/usr/bin/curl
+TIMEOUT=/usr/libexec/mclash-timeout
 LOCK=/var/lock/mclash-ui.lock
 STATE=/var/run/mclash/update.status
 UPLOAD=/tmp/mclash-mihomo.upload
@@ -56,7 +57,7 @@ lock() {
  trap 'fail "更新任务被中断"' HUP INT TERM
 }
 core_version() {
- timeout 5 "$1" -v 2>/dev/null | awk '$1 == "Mihomo" && $2 == "Meta" {sub(/^v/,"",$3); print $3; exit}'
+ "$TIMEOUT" 5 "$1" -v 2>/dev/null | awk '$1 == "Mihomo" && $2 == "Meta" {sub(/^v/,"",$3); print $3; exit}'
 }
 newer() {
  awk -v a="$1" -v b="$2" 'BEGIN {split(a,x,".");split(b,y,".");for(i=1;i<=3;i++){if(x[i]+0>y[i]+0)exit 0;if(x[i]+0<y[i]+0)exit 1}exit 1}'
@@ -138,7 +139,7 @@ esac
 chmod 0755 "$WORK/mihomo"
 candidate_version="$(core_version "$WORK/mihomo")"
 printf '%s\n' "$candidate_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' || fail '内核无法运行，请检查 CPU 架构'
-timeout -s KILL 45 "$WORK/mihomo" -t -d /etc/mclash -f "$CONFIG" > "$WORK/validation.log" 2>&1
+"$TIMEOUT" 45 "$WORK/mihomo" -t -d /etc/mclash -f "$CONFIG" > "$WORK/validation.log" 2>&1
 validation_result=$?
 if [ "$validation_result" != 0 ]; then
  reason='配置或规则资源校验失败'

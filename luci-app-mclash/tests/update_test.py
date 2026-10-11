@@ -44,6 +44,7 @@ class CoreUpdateTest(unittest.TestCase):
         source = (ROOT / 'root/usr/libexec/mclash-update').read_text()
         replacements = {
             '/usr/libexec/mclash-lock': str(self.base/'lock-helper'), '/usr/bin/mihomo': str(self.core), '/etc/init.d/mclash': str(self.init),
+            '/usr/libexec/mclash-timeout': str(ROOT / 'root/usr/libexec/mclash-timeout'),
             '/usr/libexec/mclash-ui': str(self.ui), '/usr/libexec/mclash-log': str(self.base / 'log-helper'), '/etc/mclash/config.yaml': str(self.config),
             '/etc/mclash': str(self.base), '/var/lock/mclash-ui.lock': str(self.lock),
             '/var/run/mclash': str(self.base / 'state'), '/var/log': str(self.base / 'log'), '/tmp/mclash-mihomo.upload': str(self.upload),

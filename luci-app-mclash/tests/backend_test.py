@@ -38,6 +38,7 @@ exit 1
         source = (ROOT/'root/usr/libexec/mclash-ui').read_text()
         for original, replacement in {
             '/usr/libexec/mclash-lock': str(self.base/'lock-helper'), '/usr/bin/mihomo': str(core),
+            '/usr/libexec/mclash-timeout': str(ROOT / 'root/usr/libexec/mclash-timeout'),
             '/etc/init.d/mclash': str(init),
             '/etc/mclash/config.upload.yaml': str(self.upload),
             '/etc/mclash/config.yaml': str(self.config),
@@ -51,7 +52,7 @@ exit 1
         (self.base / 'log-helper').write_text(log_source)
         (self.base / 'log-helper').chmod(0o755)
         self.script = self.base / 'ui'
-        self.script.write_text(source.replace('timeout -s KILL 25','timeout -s KILL 2'))
+        self.script.write_text(source.replace('"$TIMEOUT" 25','"$TIMEOUT" 2'))
         (self.base/'curl').write_text('#!/bin/sh\n[ ! -f ' + str(self.base/'fail-fetch') + ' ] || exit 28\nwhile [ "$1" != --output ]; do shift; done\nshift; printf "proxies: []\\n" > "$1"\n')
         (self.base/'curl').chmod(0o755)
 
@@ -144,6 +145,23 @@ exit 1
         (self.base/'fail-fetch').unlink(); (self.base/'url').write_text('https://example.org/retry')
         self.assertEqual(self.run_command('fetch-subscription').returncode,0)
         self.assertFalse(self.lock.exists())
+
+    def test_subscription_and_validation_without_system_timeout(self):
+        fakebin = self.base / 'minimal-bin'
+        fakebin.mkdir()
+        for name in ['sleep', 'mkdir', 'rmdir', 'date', 'stat', 'cat', 'wc', 'tr', 'mktemp', 'rm', 'mv', 'awk', 'grep', 'head']:
+            (fakebin / name).symlink_to('/usr/bin/busybox')
+        env = dict(os.environ, PATH=str(fakebin))
+        missing = subprocess.run(['/bin/sh', '-c', 'command -v timeout'], env=env,
+                                 capture_output=True, text=True)
+        self.assertNotEqual(missing.returncode, 0)
+        (self.base / 'url').write_text('https://example.org/test')
+        for action in ['fetch-subscription', 'validate']:
+            result = subprocess.run(['/bin/sh', str(self.script), action], env=env,
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('not found', result.stderr)
+        self.assertEqual(result.stdout, '配置校验通过\n')
 
     def test_abandoned_lock_recovers(self):
         self.lock.mkdir(); (self.lock/'owner').write_text('99999999 0 fetch-subscription\n')

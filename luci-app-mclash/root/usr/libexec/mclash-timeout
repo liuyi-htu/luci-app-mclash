@@ -1,0 +1,33 @@
+#!/bin/sh
+# Bound direct curl/mihomo processes without an optional timeout applet.
+[ "$#" -ge 2 ] || exit 2
+seconds="$1"
+shift
+case "$seconds" in ''|*[!0-9]*|0) exit 2 ;; esac
+[ "$#" -gt 0 ] || exit 2
+child=''; watchdog=''
+cleanup() {
+	[ -z "$watchdog" ] || { kill -TERM "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null; }
+	[ -z "$child" ] || { kill -KILL "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
+	:
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+"$@" &
+child=$!
+(
+	trap - EXIT
+	timer=''
+	trap '[ -z "$timer" ] || { kill "$timer" 2>/dev/null; wait "$timer" 2>/dev/null; }; exit 0' HUP INT TERM
+	sleep "$seconds" &
+	timer=$!
+	wait "$timer"
+	kill -KILL "$child" 2>/dev/null
+) &
+watchdog=$!
+wait "$child"
+result=$?
+child=''
+exit "$result"

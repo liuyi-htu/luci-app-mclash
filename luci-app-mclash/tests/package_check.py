@@ -62,6 +62,9 @@ with tempfile.TemporaryDirectory(prefix='mclash-package-') as temporary:
         assert (extracted/'www/luci-static/resources/mclash'/(name+'.js')).is_file()
     assert (extracted/'usr/share/doc/luci-app-mclash/GPL-3.0.txt').is_file()
     scripts=[extracted/'etc/init.d/mclash', extracted/'etc/uci-defaults/99-luci-app-mclash', *list((extracted/'usr/libexec').glob('mclash-*'))]
+    for name in ['mclash-timeout', 'mclash-ui', 'mclash-update']:
+        path = Path('usr/libexec') / name
+        assert (extracted / path).read_bytes() == (root / 'root' / path).read_bytes(), str(path)
     for path in scripts:
         assert path.is_file() and path.stat().st_mode & 0o111, str(path)
         subprocess.run(['busybox','ash','-n',str(path)],check=True)
