@@ -1,0 +1,8 @@
+{
+  "admin/services/mclash": {
+    "title": "Mclash",
+    "order": 60,
+    "action": { "type": "view", "path": "mclash/overview" },
+    "depends": { "acl": ["luci-app-mclash"] }
+  }
+}

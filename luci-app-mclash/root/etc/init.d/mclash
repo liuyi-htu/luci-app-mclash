@@ -1,0 +1,42 @@
+#!/bin/sh /etc/rc.common
+START=99
+STOP=10
+USE_PROCD=1
+
+service_log() { /usr/libexec/mclash-log append-service "$1" || true; }
+
+start_service() {
+	service_log '收到启动请求，开始配置校验'
+	[ -x /usr/bin/mihomo ] || { logger -t mclash 'Mihomo core is missing'; service_log '启动失败：Mihomo 内核不存在'; return 1; }
+	[ -s /etc/mclash/config.yaml ] || { service_log '启动失败：配置文件为空或不存在'; return 1; }
+	umask 077
+	chmod 0700 /etc/mclash
+	chmod 0600 /etc/mclash/config.yaml
+	if ! timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1; then
+		logger -t mclash 'Configuration validation failed; service not started'
+		service_log '配置校验失败或超时，未启动服务'
+		return 1
+	fi
+	service_log '配置校验通过'
+	procd_open_instance main
+	procd_set_param command /usr/libexec/mclash-run
+	procd_set_param term_timeout 15
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param file /etc/mclash/config.yaml
+	procd_close_instance
+}
+
+stop_service() {
+	service_log '停止服务'
+	/usr/libexec/mclash-network down
+	/usr/libexec/mclash-dashboard down
+}
+
+reload_service() {
+	# Validate before stopping the running instance.
+	timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1 || return 1
+	stop
+	start
+}

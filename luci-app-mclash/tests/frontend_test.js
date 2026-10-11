@@ -1,0 +1,235 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const source = fs.readFileSync(__dirname + '/../htdocs/luci-static/resources/view/mclash/overview.js', 'utf8');
+
+// LuCI rejects plain objects and strings from module factories. Test every
+// helper with the same constructor contract instead of substituting its export.
+for (const name of ['proxy', 'management', 'overrides', 'template', 'update', 'notify']) {
+ global.self = global;
+ const moduleSource = fs.readFileSync(__dirname + '/../htdocs/luci-static/resources/mclash/' + name + '.js', 'utf8');
+ const Module = new Function('baseclass', 'ui', 'overrides', moduleSource)(
+  {extend: members => function() { Object.assign(this, members); }}, {}, {});
+ assert.equal(typeof Module, 'function', name + ' must export a LuCI constructor');
+ const instance = new Module();
+ assert.ok(name === 'template' ? typeof instance.text === 'string' : typeof instance[name === 'overrides' ? 'call' : name === 'notify' ? 'show' : 'render'] === 'function');
+}
+// A standalone link must connect with the configured address/port, and cease
+// being actionable while the core is stopped or its endpoint is loopback-only.
+{
+ const nodes = [];
+ function E(tag, attrs, children) {
+  const node = {tag, attrs: {...attrs}, children, textContent: '',
+   removeAttribute(name) { delete this.attrs[name]; if (name === 'href') delete this.href; },
+   setAttribute(name, value) { this.attrs[name] = value; },
+   hasAttribute(name) { return name === 'href' ? !!this.href : name in this.attrs; }};
+  nodes.push(node); return node;
+ }
+ const Module = new Function('baseclass', 'E', '_', 'location', fs.readFileSync(__dirname + '/../htdocs/luci-static/resources/mclash/proxy.js', 'utf8'))(
+  {extend: members => function() {Object.assign(this, members);}}, E, x => x, {hostname: '192.168.10.1'});
+ let running = true, config = {controller: '0.0.0.0:9097', secret: 'test-key'};
+ const panel = new Module().render(() => config, () => running);
+ panel.refresh();
+ const link = nodes.find(n => n.tag === 'a');
+ assert.equal(link.attrs.target,'_blank','panel opens separately');
+ assert.equal(panel.element,link,'panel is a direct toolbar action');
+ assert.equal(link.attrs['aria-label'],'打开代理面板');
+ assert.ok(link.attrs.rel.includes('noopener'));
+ const target = new URL(link.href, 'http://192.168.10.1');
+ assert.equal(target.pathname, '/mclash/zashboard/');
+ assert.equal(target.search, '', 'controller key belongs only in the URL fragment');
+ const params = new URLSearchParams(target.hash.split('?')[1]);
+ assert.equal(params.get('hostname'), '192.168.10.1');
+ assert.equal(params.get('port'), '9097');
+ assert.equal(params.get('secret'), 'test-key');
+ delete config.secret; panel.refresh();
+ assert.equal(link.attrs['aria-disabled'], 'false');
+ assert.equal(new URLSearchParams(new URL(link.href, 'http://192.168.10.1').hash.split('?')[1]).get('secret'), '');
+ running = false; panel.refresh(); assert.ok(!link.href);
+ running = true; config.controller = '[::1]:9097'; panel.refresh(); assert.ok(!link.href);
+ assert.ok(!nodes.some(n => n.tag === 'iframe'));
+}
+// Toasts treat messages as text, support dismiss and expire after five seconds.
+{
+ const scheduled=[], cleared=[];
+ function E(tag,attrs,children) {
+  const node={tag,attrs:attrs||{},children:children||[],parentNode:null,appendChild(child) {this.children.push(child);child.parentNode=this;},removeChild(child) {this.children.splice(this.children.indexOf(child),1);child.parentNode=null;}};
+  Object.defineProperty(node,'firstChild',{get() {return this.children[0];}});return node;
+ }
+ const document={head:E('head'),body:E('body')};
+ const window={setTimeout(fn,delay) {scheduled.push({fn,delay});return scheduled.length;},clearTimeout(id) {cleared.push(id);}};
+ const Toast=new Function('baseclass','E','_','document','window',fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/mclash/notify.js','utf8'))({extend:m=>function(){Object.assign(this,m)}},E,x=>x,document,window);
+ const notices=new Toast();const first=notices.show('<script>private</script>','error');
+ assert.equal(first.attrs.role,'alert');assert.deepEqual(first.children[1].children,['<script>private</script>']);
+ assert.equal(scheduled[0].delay,5000);scheduled[0].fn();assert.equal(first.parentNode,null);
+ const second=notices.show('saved','success');assert.equal(second.attrs.role,'status');second.children[2].attrs.click();assert.equal(second.parentNode,null);
+ for(let i=0;i<4;i++) notices.show(String(i),'info');assert.equal(document.body.children[0].children.length,3);
+ assert.equal(document.head.children.length,1);
+}
+async function main() {
+ {
+  const buttons=[];
+  function E(tag,attrs,children) { const n={tag,attrs:attrs||{},children:children||[],disabled:false,
+   setAttribute(k,v){this.attrs[k]=v;},appendChild(c){this.children.push(c);},removeChild(c){this.children.splice(this.children.indexOf(c),1);}};
+   Object.defineProperty(n,'firstChild',{get(){return this.children[0];}});
+   Object.defineProperty(n,'textContent',{set(v){this.children=[];}});
+   if(tag==='button')buttons.push(n); return n;
+  }
+  let active=false;
+  const Module=new Function('baseclass','E','_','ui','overrides','notifications',fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/mclash/management.js','utf8'))(
+   {extend:x=>function(){Object.assign(this,x);}},E,x=>x,{}, {call:()=>({actions:['addNode','host','prependProxy','groups','ruleProviders','rules']})},{show(){}});
+  const manager=new Module().render(()=>'',async()=>'',()=>active);
+  manager.setRunning(true); assert.equal(buttons.length,6); assert.ok(buttons.every(n=>n.disabled));
+  manager.setRunning(false); assert.ok(buttons.every(n=>!n.disabled));
+  active=true; await buttons[0].attrs.click({currentTarget:buttons[0]});
+  assert.ok(!buttons[0].mclashBusy,'a running core blocks the operation before opening its modal');
+ }
+ {
+  const nodes=[]; let result='idle\t0\t尚未开始更新。',serviceRefreshes=0;
+  function E(tag,attrs,children){const n={tag,attrs:attrs||{},children:children||[],style:{},disabled:false,setAttribute(k,v){this.attrs[k]=v;}};nodes.push(n);return n;}
+  const Module=new Function('baseclass','E','_','ui','notifications','window',fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/mclash/update.js','utf8'))(
+   {extend:x=>function(){Object.assign(this,x);}},E,x=>x,{}, {show(){}},{clearTimeout(){},setTimeout(){return 1;}});
+  const update=new Module().render(async()=>result,E('strong',{},['v1.19.32']),async()=>{serviceRefreshes++;});
+  const controls=nodes.filter(n=>n.tag==='button');
+  assert.deepEqual(controls.map(n=>n.children[0]).sort(),['上传更新','在线更新','检查更新'].sort());
+  assert.ok(controls.every(n=>!n.disabled),'core running state never disables updater controls');
+  result='running\t80\t正在替换内核'; await update.refresh(); assert.ok(controls.every(n=>n.disabled),'only an active update prevents concurrent updates');
+  result='error\t100\t旧内核已恢复'; await update.refresh(); assert.equal(serviceRefreshes,1); assert.ok(controls.every(n=>!n.disabled));
+  assert.ok(!nodes.some(n=>n.attrs.class==='mclash-note'),'static update hints are removed');
+ }
+ const nodes = [], notifications = [], calls = [];
+ let actualRunning = false, rejectSave = false, networkArgs, controllerArgs, modal, managerRunning, savedText = 'mixed-port: 7890\n';
+ function E(tag, attrs, children) {
+  const node = {tag, attrs:attrs || {}, children:children || [], disabled:false, value:(attrs || {}).value || '', checked:false,style:{},
+   addEventListener(type,fn) { (this.listeners || (this.listeners={}))[type]=fn; }, setAttribute(key,value) {this.attrs[key]=value;}, appendChild(child) {this.children.push(child);}};
+  Object.defineProperty(node,'textContent',{get() {return this.text || '';},set(value) {this.text=value; this.children=[];}});
+  if (tag==='textarea') node.value=(children || []).join('');
+  nodes.push(node); return node;
+ }
+ const file = {
+  exec:async (path,args) => {
+   assert.equal(path,'/usr/libexec/mclash-ui'); calls.push(args[0]);
+   if (args[0]==='status') return {code:0,stdout:JSON.stringify({installed:true,running:actualRunning,enabled:false,version:'test'})};
+   if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip:'203.0.113.1',region:'测试地区',latency:125})};
+   if (args[0]==='devices') return {code:0,stdout:'{"devices":["br-lan","br-guest"]}'};
+   if (args[0]==='save' && rejectSave) return {code:1,stderr:'配置校验失败'};
+   if (args[0]==='read-config') return {code:0,stdout:savedText};
+   if (args[0]==='fetch-subscription') return {code:0,stdout:'proxies: []\nrules: [MATCH,DIRECT]\n'};
+   return {code:0,stdout:'<script>secret</script>'};
+  },
+  write:async (path,text,mode) => {
+   assert.equal(mode,0o600);
+   if (path==='/etc/mclash/config.upload.yaml') {savedText=text; calls.push('write');}
+   else {assert.equal(path,'/etc/mclash/subscription.url'); calls.push('url');}
+  }
+ };
+ const ui = {addNotification:(_title,element,type)=>notifications.push({element,type}),showModal:(title,children)=>{modal={title,children};},hideModal:()=>{modal=null;},
+  tabs:{initTabGroup(panes) {assert.deepEqual(panes.map(n=>n.attrs['data-tab-title']),['基础设置','节点与规则','运行配置','日志','更新内核']);}}};
+ const override = {call:(action,text,args)=>{if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscription') return text;
+  return {controller:'0.0.0.0:9097',groups:[]};}};
+ const app = new Function('view','fs','ui','E','_','management','proxy','overrides','template','update','notice','L','probe',source)(
+  {extend:x=>x},file,ui,E,x=>x,{render:(_content,_save,getRunning)=>{managerRunning=getRunning;return {element:E('div'),refresh() {}};}},
+  {render:()=>({element:E('div'),refresh() {}})},override,{text:'rules: [MATCH,DIRECT]'}, {render:()=>({element:E('div'),refresh:async()=>{}})}, {show:(message,type)=>notifications.push({message,type})}, {resource:path=>'/luci-static/resources/'+path}, {run:(_kind,_source,_command)=>_command('probe-'+_kind).then(JSON.parse)});
+ await app.load();
+ app.render([JSON.stringify({installed:true,running:true,enabled:false}),savedText,'{"devices":["br-lan","br-guest"]}']);
+ const click=async label=>{
+  const node=nodes.filter(n=>n.tag==='button' && (n.attrs['aria-label']===label || n.children[0]===label)).at(-1);
+  assert.ok(node,label+' must exist'); await node.attrs.click({currentTarget:node});
+ };
+ for (const label of ['Telegram 连接','OpenAI 连接','阿里连接','谷歌连接','GitHub 连接','YouTube 连接']) {
+  await click(label);
+  const card=nodes.find(n=>n.attrs['aria-label']===label);
+  const value=card.children[1].children[1];
+  assert.equal(value.children.length,3);
+  assert.equal(value.children[1].children[1],'203.0.113.1');
+  assert.equal(value.children[0].children[1],'125 ms');
+  assert.equal(card.disabled,false);
+ }
+ assert.equal(nodes.filter(n=>n.tag==='img' && n.attrs.class==='mclash-brand-icon').length,6);
+ const configPane=nodes.find(n=>n.attrs['data-tab']==='config'); assert.ok(configPane.children.includes(nodes.find(n=>n.tag==='pre')));
+ const originalText=savedText; savedText='fresh runtime config'; calls.length=0; configPane.listeners['cbi-tab-active']();
+ await new Promise(resolve=>setImmediate(resolve)); assert.ok(calls.includes('read-config'));
+ assert.equal(nodes.find(n=>n.tag==='pre').textContent,'fresh runtime config'); savedText=originalText;
+ assert.ok(!nodes.some(n=>n.tag==='button' && n.children[0]==='重启服务'),'restart control is absent');
+ assert.ok(!nodes.some(n=>n.tag==='button' && n.children[0]==='刷新配置'),'config refreshes on tab activation');
+ assert.deepEqual(nodes.filter(n=>n.tag==='h3').map(n=>n.children[0]),['接管方式','机场订阅']);
+ const probeSource=nodes.find(n=>n.tag==='button' && n.attrs['aria-label']==='检测来源');
+ assert.equal(probeSource.value,'browser');
+ const captureSection=nodes.find(n=>n.tag==='section' && n.attrs['data-settings-group']==='capture');
+ const rulesPane=nodes.find(n=>n.attrs['data-tab']==='rules'); assert.ok(rulesPane,'nodes and rules have a main page');
+ assert.ok(!nodes.some(n=>n.tag==='textarea'),'subscription inputs are created only in the dialog');
+ const text=n=>typeof n==='string'?n:(n.children||[]).map(text).join('');
+ assert.ok(!text(captureSection).includes('检测来源：'),'capture selector is removed');
+ const probeHost=nodes.find(n=>n.attrs.class==='mclash-probe-host');
+ assert.ok(probeHost.children.includes(probeSource));
+ assert.equal(probeHost.children[0].attrs['aria-label'],'OpenAI 连接');
+ await click('检测来源'); assert.equal(probeSource.value,'router');
+ probeSource.disabled=true; await click('检测来源'); assert.equal(probeSource.value,'router');
+ probeSource.disabled=false; await click('检测来源'); assert.equal(probeSource.value,'browser');
+ const routerTile=()=>nodes.find(n=>n.tag==='button' && n.attrs['aria-label']==='代理范围');
+ assert.ok(!nodes.some(n=>n.tag==='button' && ['代理局域网设备','代理路由器本机','代理 IPv6','访问控制'].includes(n.attrs['aria-label'])),'proxy scope has one shared entry');
+ assert.ok(text(routerTile()).includes('已配置 · 未生效'),'capture disabled must not claim router proxy is active');
+ assert.ok(routerTile().className.includes('mclash-inactive'));
+
+ calls.length=0;
+ await click('接管方式');
+ assert.equal(modal.title,'接管方式');
+ const mode=nodes.find(n=>n.tag==='select' && n.attrs['aria-label']==='接管方式'); mode.value='tproxy';
+ await click('保存');
+ assert.deepEqual(networkArgs,{mode:'tproxy',interfaces:['br-lan'],lan:true,access:[],router:true,ipv6:false,stack:'mixed'});
+ assert.ok(calls.indexOf('status')<calls.indexOf('write'),'recheck stale running status before saving');
+ assert.ok(calls.includes('save')); assert.ok(!calls.includes('restart'));
+ assert.equal(notifications.at(-1).type,'success');
+ await click('代理范围'); assert.equal(modal.title,'代理范围');
+ const scopeBox=label=>nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']===label).at(-1);
+ assert.equal(scopeBox('代理局域网设备').checked,true);
+ assert.equal(scopeBox('代理路由器本机').checked,true);
+ assert.equal(scopeBox('代理 IPv6').checked,false);
+ scopeBox('代理局域网设备').checked=false; scopeBox('代理路由器本机').checked=false; scopeBox('代理 IPv6').checked=true;
+ await click('保存'); assert.equal(networkArgs.lan,false); assert.equal(networkArgs.router,false); assert.equal(networkArgs.ipv6,true);
+ assert.equal(networkArgs.mode,'tproxy'); assert.deepEqual(networkArgs.interfaces,['br-lan']);
+ await click('代理范围'); assert.equal(scopeBox('代理 IPv6').checked,true);
+ scopeBox('代理路由器本机').checked=true; scopeBox('代理 IPv6').checked=false;
+ await click('保存'); assert.equal(networkArgs.router,true); assert.equal(networkArgs.ipv6,false);
+ assert.ok(nodes.find(n=>n.attrs['aria-label']==='局域网设备').className.includes('mclash-inactive'));
+ await click('局域网设备');
+ const choices=nodes.filter(n=>n.tag==='label'); assert.ok(choices.some(n=>n.children.includes('br-guest')));
+ choices.find(n=>n.children.includes('br-guest')).children[0].checked=true;
+ await click('保存'); assert.deepEqual(networkArgs.interfaces.slice().sort(),['br-guest','br-lan']);
+ rejectSave=true; await click('接管方式'); await click('保存'); assert.equal(notifications.at(-1).type,'error'); rejectSave=false;
+ await click('管理订阅');
+ assert.equal(modal.title,'机场订阅');
+ const urls=nodes.filter(n=>n.tag==='textarea' && !n.attrs['aria-label']); assert.equal(urls.length,1,'no pasted YAML input');
+ assert.equal(urls[0].attrs.wrap,'off'); urls[0].value='https://example.org/profile';
+ calls.length=0; await click('添加或更新');
+ assert.ok(calls.includes('fetch-subscription')); assert.ok(calls.includes('save'),'stale running state does not prevent adding subscription');
+ assert.ok(savedText.indexOf('# Mclash OpenWrt 机场名称:') < savedText.indexOf('# Mclash OpenWrt 订阅链接:'));
+ await click('监听地址与端口');
+ const endpoint=nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']==='监听地址与端口').at(-1);
+ endpoint.value='127.0.0.1:9091'; await click('保存');
+ assert.deepEqual(controllerArgs,{address:'127.0.0.1',port:'9091'});
+ await click('监听地址与端口');
+ nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']==='监听地址与端口').at(-1).value='invalid';
+ calls.length=0; await click('保存'); assert.ok(!calls.includes('write')); assert.equal(notifications.at(-1).type,'error');
+ await click('代理范围');
+ const accessInput=nodes.filter(n=>n.tag==='textarea' && n.attrs['aria-label']==='代理 IP／范围（每行一条）').at(-1);
+ assert.equal(accessInput.attrs.wrap,'off'); accessInput.value='192.168.10.100\n192.168.10.0/24';
+ await click('保存'); assert.deepEqual(networkArgs.access,['192.168.10.100','192.168.10.0/24']);
+ await click('代理范围'); assert.equal(nodes.filter(n=>n.tag==='textarea' && n.attrs['aria-label']==='代理 IP／范围（每行一条）').at(-1).value,accessInput.value);
+ await click('保存'); assert.deepEqual(networkArgs.access,['192.168.10.100','192.168.10.0/24']);
+ actualRunning=true; await nodes.find(n=>n.attrs['data-tab']==='settings').listeners['cbi-tab-active']();
+ assert.ok(text(routerTile()).includes('已启用')); assert.ok(!routerTile().className.includes('mclash-inactive'),'running TProxy restores effective state');
+ assert.ok(!nodes.some(n=>n.tag==='button' && n.attrs['aria-label']==='TUN 协议栈'),'stack belongs inside capture dialog');
+ await click('管理订阅'); calls.length=0; await click('添加或更新');
+ assert.ok(!calls.includes('fetch-subscription')); assert.equal(notifications.at(-1).type,'error','actual running service still protects profile');
+ assert.ok(nodes.filter(n=>n.mclashConfig).every(n=>n.disabled),'running locks all general configuration tiles');
+ assert.ok(!nodes.find(n=>n.tag==='button' && n.attrs['aria-label']==='点击启停').disabled,'stop remains usable');
+ actualRunning=false; assert.equal(await managerRunning(),false,'manager must not treat UI busy as core running');
+ await click('刷新日志'); assert.equal(nodes.filter(n=>n.tag==='pre')[1].textContent,'<script>secret</script>');
+ await click('清空日志'); assert.ok(calls.includes('clear-service-logs'));
+ assert.ok(nodes.filter(n=>n.tag==='button' && n.children[0]!=='取消拉取').every(n=>!n.disabled));
+ calls.length=0; actualRunning=false; await click('点击启停'); assert.ok(calls.includes('start'),'card starts the stopped service');
+ calls.length=0; actualRunning=true; await click('点击启停'); assert.ok(calls.includes('stop'),'card stops the running service after a fresh status read');
+ console.log('Frontend checks passed: stale status, subscription, selected LAN devices and service protection');
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

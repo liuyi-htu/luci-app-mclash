@@ -1,0 +1,119 @@
+# Mclash OpenWrt 接管: {"mode":"none","interfaces":["br-lan"],"lan":true,"access":[],"router":true,"ipv6":false,"stack":"mixed"}
+# Mclash 订阅配置模板
+# Mclash 国内正则: ""
+# Mclash 国外正则: ""
+mixed-port: 7890
+redir-port: 7891
+tproxy-port: 0
+ipv6: false
+mode: rule
+allow-lan: false
+bind-address: "*"
+
+disable-keep-alive: false
+keep-alive-idle: 15
+keep-alive-interval: 15
+unified-delay: true
+tcp-concurrent: true
+log-level: error
+find-process-mode: "off"
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+geodata-mode: true
+geo-auto-update: true
+geo-update-interval: 24
+geox-url:
+  geoip: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
+  geosite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+  mmdb: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb"
+
+external-controller: 0.0.0.0:9097
+external-controller-cors:
+  allow-origins:
+    - "*"
+  allow-private-network: true
+
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 5228, 8443]
+    QUIC:
+      ports: [443, 8443]
+
+tun:
+  enable: false
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+
+  cache-algorithm: arc
+
+  respect-rules: true
+
+  use-hosts: true
+  use-system-hosts: false
+
+  fake-ip-filter:
+    - "+.lan"
+    - "+.local"
+    - "+.localdomain"
+    - "+.home.arpa"
+    - "localhost"
+    - "*.localhost"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  nameserver:
+    - "https://1.1.1.1/dns-query#🌍 国外"
+    - "https://8.8.8.8/dns-query#🌍 国外"
+  nameserver-policy:
+    "geosite:cn":
+      - "https://dns.alidns.com/dns-query#🚀 国内"
+      - "https://doh.pub/dns-query#🚀 国内"
+
+proxies: []
+
+proxy-groups:
+- name: 🚀 国内
+  type: select
+  url: http://connect.rom.miui.com/generate_204
+  proxies:
+      - DIRECT
+- name: 🌍 国外
+  proxies:
+      - DIRECT
+  type: select
+  url: http://www.gstatic.com/generate_204
+
+rules:
+  - AND,((NETWORK,UDP),(DST-PORT,443)),REJECT
+  - GEOSITE,openai,🌍 国外
+  - GEOSITE,youtube,🌍 国外
+  - GEOSITE,telegram,🌍 国外
+  - GEOIP,telegram,🌍 国外,no-resolve
+  - GEOSITE,google,🌍 国外
+  - GEOSITE,CN,🚀 国内
+  - GEOIP,CN,🚀 国内,no-resolve
+  - MATCH,🌍 国外

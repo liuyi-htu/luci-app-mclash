@@ -1,0 +1,3 @@
+# Preserve upstream bundled assets and license texts verbatim.
+luci-app-mclash/htdocs/mclash/zashboard/** -whitespace
+luci-app-mclash/root/usr/share/doc/luci-app-mclash/** -whitespace

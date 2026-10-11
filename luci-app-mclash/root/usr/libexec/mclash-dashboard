@@ -1,0 +1,55 @@
+#!/bin/sh
+# Keep the dashboard controller accessible only through selected LAN devices.
+umask 077
+CONFIG=/etc/mclash/config.yaml
+STATE=/var/run/mclash
+NFT=/usr/sbin/nft
+case "$1" in
+ down)
+  [ -f "$STATE/dashboard.owned" ] || exit 0
+  "$NFT" list table inet mclash_dashboard >/dev/null 2>&1 && "$NFT" delete table inet mclash_dashboard
+  "$NFT" list table inet mclash_dashboard >/dev/null 2>&1 && exit 1
+  rm -f "$STATE/dashboard.owned" "$STATE/dashboard.nft"
+  exit 0 ;;
+ up) ;;
+ *) exit 1 ;;
+esac
+controller="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); print $2; exit}' "$CONFIG")"
+case "$controller" in 127.*|localhost:*|\[::1\]:*|'') exit 0 ;; esac
+port="${controller##*:}"
+case "$port" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
+interfaces='"lo", "br-lan"'
+metadata="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG")"
+if [ -n "$metadata" ]; then
+ . /usr/share/libubox/jshn.sh
+ json_load "$metadata" || exit 1
+ json_select interfaces || exit 1
+ json_get_keys keys
+ interfaces='"lo"'
+ count=0
+ for key in $keys; do
+  json_get_var device "$key"
+  case "$device" in ''|*[!A-Za-z0-9_.-]*|lo|Mclash) exit 1 ;; esac
+  [ "${#device}" -le 15 ] || exit 1
+  count=$((count + 1)); [ "$count" -le 16 ] || exit 1
+  interfaces="$interfaces, \"$device\""
+ done
+ [ "$count" -gt 0 ] || exit 1
+fi
+mkdir -p "$STATE"
+if "$NFT" list table inet mclash_dashboard >/dev/null 2>&1; then
+ [ -f "$STATE/dashboard.owned" ] || { logger -t mclash 'Dashboard firewall table is already owned by another service'; exit 1; }
+ "$NFT" delete table inet mclash_dashboard || exit 1
+fi
+cat > "$STATE/dashboard.nft" <<EOF
+table inet mclash_dashboard {
+ chain input {
+  type filter hook input priority -10; policy accept;
+  tcp dport $port iifname != { $interfaces } drop comment "Mclash dashboard LAN only"
+ }
+}
+EOF
+"$NFT" -c -f "$STATE/dashboard.nft" || exit 1
+: > "$STATE/dashboard.owned"
+"$NFT" -f "$STATE/dashboard.nft" || { "$0" down; exit 1; }

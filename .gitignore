@@ -1,0 +1,6 @@
+dist/
+.build-logs/
+.build-cache/
+AGENTS.md
+LOCAL_CHANGES.md
+__pycache__/

@@ -1,0 +1,52 @@
+#!/bin/sh
+# Private bounded logs. Clear and append share a per-file lock.
+umask 077
+LOGDIR=/var/log
+LOCKROOT=/var/lock/mclash-log
+OWN=0
+unlock() { [ "$OWN" = 0 ] || { rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null; OWN=0; }; }
+trap unlock EXIT
+trap 'exit 1' HUP INT TERM
+case "$1" in
+ stream-core|append-core|clear-core) FILE="$LOGDIR/mihomo.log"; LOCK="$LOCKROOT-core.lock" ;;
+ append-service|clear-service) FILE="$LOGDIR/mclash.log"; LOCK="$LOCKROOT-service.lock" ;;
+ append-update|clear-update) FILE="$LOGDIR/mclash-update.log"; LOCK="$LOCKROOT-update.lock" ;;
+ *) exit 1 ;;
+esac
+acquire() {
+ mkdir -p "$LOGDIR" "$(dirname "$LOCK")" || return 1
+ local n=0 pid
+ while ! mkdir "$LOCK" 2>/dev/null; do
+  pid="$(cat "$LOCK/pid" 2>/dev/null)"
+  case "$pid" in ''|*[!0-9]*) ;; *) if ! kill -0 "$pid" 2>/dev/null; then rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null; continue; fi ;; esac
+  n=$((n + 1)); [ "$n" -lt 50 ] || return 1
+  sleep .1
+ done
+ OWN=1; printf '%s\n' "$$" > "$LOCK/pid"
+ [ ! -L "$FILE" ] && { [ ! -e "$FILE" ] || [ -f "$FILE" ]; } || { unlock; return 1; }
+}
+append() {
+ acquire || return 1
+ local line
+ line="$(printf '%s' "$1" | cut -b 1-8192)"
+ local size=0 bytes
+ [ ! -f "$FILE" ] || size="$(wc -c < "$FILE")"
+ bytes="$(printf '%s' "$line" | wc -c)"
+ if [ "$((size + bytes + 21))" -gt 524288 ]; then
+  tail -c 262144 "$FILE" | sed '1d' > "$FILE.$$"
+  cat "$FILE.$$" > "$FILE"; rm -f "$FILE.$$"
+ fi
+ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >> "$FILE"
+ chmod 0600 "$FILE"
+ unlock
+}
+case "$1" in
+ clear-*) acquire || exit 1; : > "$FILE"; chmod 0600 "$FILE"; unlock ;;
+ append-*) append "$2" ;;
+ stream-core)
+  while IFS= read -r line || [ -n "$line" ]; do
+   append "$line" || true
+   printf '%s\n' "$line"
+  done
+  ;;
+esac

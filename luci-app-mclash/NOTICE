@@ -1,0 +1,9 @@
+Mclash OpenWrt client (luci-app-mclash).
+LuCI layout and CSS adapted from the sibling luci-app-v2bx project,
+which derives from https://github.com/liuyi-htu/luci-app-frpc-own
+at commit 04b9b68fce90f91c955479435b8d5835edb4f13f (Apache-2.0).
+Build/package verification helpers adapted from luci-app-v2bx (Apache-2.0).
+Mihomo is an independently installed upstream component, not bundled here.
+Repository: https://github.com/liuyi-htu/Mclash
+
+Embedded Zashboard v3.29.1 (MIT), official dist-no-fonts.zip SHA256 21371cd111b6b3d87774f3ea3ddeacdcb0f6aff8690a16d652daa3ea6e3b0145. Upstream: https://github.com/Zephyruso/zashboard. Third party notices included in dashboard assets.

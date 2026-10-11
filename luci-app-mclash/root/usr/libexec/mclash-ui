@@ -1,0 +1,198 @@
+#!/bin/sh
+# Fixed commands and paths; no browser-provided shell commands or file paths.
+umask 077
+CORE=/usr/bin/mihomo
+INIT=/etc/init.d/mclash
+CONFIG=/etc/mclash/config.yaml
+UPLOAD=/etc/mclash/config.upload.yaml
+LOCK=/var/lock/mclash-ui.lock
+CANDIDATE=''
+REQUEST=/etc/mclash/api.request.json
+URLFILE=/etc/mclash/subscription.url
+CURL=/usr/bin/curl
+FETCH=''; FETCH_PID=''
+. /usr/libexec/mclash-lock
+
+fail() { printf '%s\n' "$1" >&2; exit 1; }
+service_active() {
+	local info
+	info="$(ubus call service list '{"name":"mclash"}' 2>/dev/null)" || return 1
+	[ "$(printf '%s' "$info" | jsonfilter -e '@.mclash.instances.main.running')" = true ] || return 1
+}
+running() {
+	local pid
+	service_active || return 1
+	pid="$(cat /var/run/mclash/core.pid 2>/dev/null)"
+	case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$(readlink "/proc/$pid/exe")" = "$CORE" ] && kill -0 "$pid" 2>/dev/null || return 1
+	local mode
+	mode="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG" | jsonfilter -e '@.mode' 2>/dev/null)"
+	case "$mode" in tun|tproxy) [ "$(cat /var/run/mclash/network.ready 2>/dev/null)" = "$mode" ] ;; *) return 0 ;; esac
+}
+core_version() {
+ [ -x "$CORE" ] || return 1
+ local value
+ value="$(timeout 5 "$CORE" -v 2>/dev/null)" || return 1
+ case "$value" in Mihomo\ *) printf '%s\n' "$value" | head -n 1 ;; *) return 1 ;; esac
+}
+validate() {
+ core_version >/dev/null || fail 'Mihomo 核心缺失或无法运行，请安装匹配路由器架构的 /usr/bin/mihomo'
+	[ -x "$CORE" ] || fail '请先安装 /usr/bin/mihomo 核心'
+	[ -f "$1" ] && [ ! -L "$1" ] || fail '配置文件不存在或为符号链接'
+	[ -s "$1" ] || fail '配置不能为空'
+	[ "$(wc -c < "$1")" -le 1048576 ] || fail '配置不能超过 1 MiB'
+	# Core diagnostics may contain secrets: expose only a generic result.
+	timeout 30 "$CORE" -t -d /etc/mclash -f "$1" >/dev/null 2>&1 || fail 'Mihomo 配置校验失败或超时，请检查 YAML、节点及规则资源'
+}
+lock() {
+	mkdir -p /var/lock
+	mclash_lock_acquire "$ACTION" || fail '另一个操作正在进行，请稍后重试'
+	trap '[ -z "$FETCH_PID" ] || kill "$FETCH_PID" 2>/dev/null; rm -f "$UPLOAD" "$REQUEST" "$URLFILE"; [ -z "$CANDIDATE" ] || rm -f "$CANDIDATE"; [ -z "$FETCH" ] || rm -f "$FETCH"; mclash_lock_release' EXIT
+	trap 'exit 1' HUP INT TERM
+}
+[ "$#" -eq 1 ] || fail '参数错误'
+ACTION="$1"
+case "$1" in
+ probe-telegram|probe-openai|probe-aliyun|probe-google|probe-github|probe-youtube) exec /usr/libexec/mclash-probe "${1#probe-}" ;;
+ check-update) exec /usr/libexec/mclash-update check ;;
+ update-online) exec /usr/libexec/mclash-update online ;;
+ update-local) exec /usr/libexec/mclash-update local ;;
+ update-status) exec /usr/libexec/mclash-update status ;;
+esac
+case "$1" in
+ cancel-fetch)
+  read -r owner_pid owner_stamp owner_action < "$LOCK/owner" 2>/dev/null || { printf '没有正在拉取的订阅\n'; exit 0; }
+  [ "$owner_action" = fetch-subscription ] || fail '当前操作不是订阅拉取'
+  case "$owner_pid" in ''|*[!0-9]*) fail '订阅进程无效' ;; esac
+  if [ "$(mclash_lock_stamp "$owner_pid")" = "$owner_stamp" ]; then kill -TERM "$owner_pid" 2>/dev/null || true; fi
+  printf '已取消订阅拉取\n'
+  ;;
+	status)
+		. /usr/share/libubox/jshn.sh
+		json_init
+		installed=0; active=0; started=0; enabled=0; version=''
+		if version="$(core_version)"; then installed=1; fi
+		running && active=1
+		service_active && started=1
+		"$INIT" enabled >/dev/null 2>&1 && enabled=1
+		json_add_boolean installed "$installed"
+		json_add_boolean running "$active"
+		json_add_boolean active "$started"
+		json_add_boolean enabled "$enabled"
+		json_add_string version "$version"
+		capture="$(cat /var/run/mclash/network.ready 2>/dev/null)"
+		case "$capture" in tun|tproxy) ;; *) capture=none ;; esac
+		json_add_string capture "$capture"
+		json_dump
+		;;
+	devices)
+		. /usr/share/libubox/jshn.sh
+		json_init; json_add_array devices
+		for device in /sys/class/net/*; do
+			name="${device##*/}"
+			case "$name" in lo|Mclash) continue ;; esac
+			[ -d "$device" ] && json_add_string '' "$name"
+		done
+		json_close_array; json_dump
+		;;
+	read-config) [ -f "$CONFIG" ] || fail '配置文件不存在'; cat "$CONFIG" ;;
+	update-logs) [ ! -f /var/log/mclash-update.log ] || tail -c 524288 /var/log/mclash-update.log | tail -n 100 ;;
+	logs) [ ! -f /var/log/mihomo.log ] || tail -c 524288 /var/log/mihomo.log | tail -n 100 ;;
+	service-logs) [ ! -f /var/log/mclash.log ] || tail -c 524288 /var/log/mclash.log | tail -n 300 ;;
+	clear-service-logs) /usr/libexec/mclash-log clear-service || fail '清空日志失败'; printf '%s\n' '日志已清空' ;;
+	clear-logs) /usr/libexec/mclash-log clear-core || fail '清空日志失败'; printf '%s\n' '日志已清空' ;;
+	clear-update-logs) /usr/libexec/mclash-log clear-update || fail '清空日志失败'; printf '%s\n' '日志已清空' ;;
+	validate) lock; validate "$CONFIG"; printf '%s\n' '配置校验通过' ;;
+	save)
+		lock
+		if service_active; then
+			running && fail '请先停止代理，再修改配置'
+			fail '服务正在启动或退出，请先停止服务再修改配置'
+		fi
+		[ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] || fail '待保存配置不存在'
+		[ "$(wc -c < "$UPLOAD")" -le 1048576 ] || fail '配置不能超过 1 MiB'
+		CANDIDATE="$(mktemp /etc/mclash/.config.XXXXXX)" || fail '无法创建临时配置'
+		cat "$UPLOAD" > "$CANDIDATE" || fail '读取配置失败'
+		validate "$CANDIDATE"
+		chmod 0600 "$CANDIDATE" || fail '设置配置权限失败'
+		mv -f "$CANDIDATE" "$CONFIG" || fail '保存配置失败'
+		printf '%s\n' '配置已保存，启动服务后生效'
+		;;
+	fetch-subscription)
+		lock
+		[ -f "$URLFILE" ] && [ ! -L "$URLFILE" ] || fail '缺少订阅地址'
+		[ "$(wc -c < "$URLFILE")" -le 4096 ] || fail '订阅地址过长'
+		url="$(cat "$URLFILE")"
+		case "$url" in http://*|https://*) ;; *) fail '订阅地址须为 HTTP 或 HTTPS' ;; esac
+		[ "$(printf '%s' "$url" | tr -d '\r\n')" = "$url" ] || fail '每次只能下载一个订阅'
+		FETCH="$(mktemp /tmp/mclash-subscription.XXXXXX)" || fail '无法创建下载文件'
+		timeout -s KILL 25 "$CURL" --fail --silent --location --connect-timeout 5 --max-time 20 --max-filesize 1048576 \
+			--proto '=http,https' --proto-redir '=http,https' --user-agent clash.meta \
+			--output "$FETCH" "$url" &
+  FETCH_PID=$!
+  wait "$FETCH_PID"; fetch_result=$?; FETCH_PID=''
+  [ "$fetch_result" = 0 ] || fail '订阅下载失败、超时或超过 1 MiB，可更换链接重试'
+		[ -s "$FETCH" ] && [ "$(wc -c < "$FETCH")" -le 1048576 ] || fail '订阅内容为空或过大'
+		cat "$FETCH"
+		;;
+	api)
+		lock
+		[ -f "$REQUEST" ] && [ ! -L "$REQUEST" ] || fail '缺少代理控制请求'
+		[ "$(wc -c < "$REQUEST")" -le 16384 ] || fail '请求过大'
+		request="$(cat "$REQUEST")"
+		port="$(printf '%s' "$request" | jsonfilter -e '@.port')"
+		case "$port" in ''|*[!0-9]*) fail '无效控制端口' ;; esac
+		[ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail '无效控制端口'
+		secret="$(printf '%s' "$request" | jsonfilter -e '@.secret')"
+		[ "$(printf '%s' "$secret" | tr -d '\r\n')" = "$secret" ] || fail '无效控制密钥'
+		op="$(printf '%s' "$request" | jsonfilter -e '@.op')"
+		method=GET; endpoint=proxies; body=''
+		case "$op" in
+			proxies) ;;
+			configs|connections) endpoint="$op" ;;
+			mode)
+				mode="$(printf '%s' "$request" | jsonfilter -e '@.mode')"
+				case "$mode" in rule|global|direct) ;; *) fail '无效代理模式' ;; esac
+				method=PATCH; endpoint=configs; body="{\"mode\":\"$mode\"}"
+				;;
+			select)
+				group="$(printf '%s' "$request" | jsonfilter -e '@.group')"
+				[ -n "$group" ] || fail '缺少代理组'
+				case "$group" in *[!A-Za-z0-9_.~%\!\*\'\(\)-]*) fail '无效代理组编码' ;; esac
+				name="$(printf '%s' "$request" | jsonfilter -e '@.name')"
+				[ -n "$name" ] || fail '缺少节点名称'
+				. /usr/share/libubox/jshn.sh
+				json_init; json_add_string name "$name"; body="$(json_dump)"
+				method=PUT; endpoint="proxies/$group"
+				;;
+			*) fail '无效代理操作' ;;
+		esac
+		controller_host="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/:[0-9]+$/, "", $2); print $2; exit}' "$CONFIG")"
+		case "$controller_host" in 0.0.0.0|localhost|'[::]') controller_host=127.0.0.1 ;; esac
+		address="$(printf '%s' "$controller_host" | tr -d '[]')"
+		case "$address" in ''|*[!0-9A-Fa-f:.]*) fail '无效本机控制地址' ;; esac
+		/sbin/ip -o address show | awk -v address="$address" '$3 == "inet" || $3 == "inet6" {split($4,a,"/"); if(a[1] == address) found=1} END {exit !found}' || fail '控制器须监听路由器本机地址'
+		FETCH="$(mktemp /tmp/mclash-api.XXXXXX)" || fail '无法创建响应文件'
+		"$CURL" --fail --silent --max-time 8 --max-filesize 1048576 --noproxy '*' \
+			--request "$method" --header "Authorization: Bearer $secret" \
+			--header 'Content-Type: application/json' --data "$body" \
+			--output "$FETCH" "http://$controller_host:$port/$endpoint" || fail '连接 Mihomo 控制器失败，请检查运行状态、监听地址和密钥'
+		cat "$FETCH"
+		;;
+	start|restart)
+		lock
+		validate "$CONFIG"
+		"$INIT" "$1" || fail '服务操作失败'
+		ready=0
+		for n in $(seq 1 35); do running && ready=1 && break; sleep 1; done
+		[ "$ready" = 1 ] || fail '核心或接管规则未就绪，请查看系统日志'
+		printf '%s\n' '服务已运行'
+		;;
+	stop|enable|disable)
+		lock
+		"$INIT" "$1" || fail '服务操作失败'
+		if [ "$1" = stop ]; then /usr/libexec/mclash-network down || fail '接管清理失败，请查看日志'; fi
+		printf '%s\n' '操作完成'
+		;;
+	*) fail '不支持的操作' ;;
+esac

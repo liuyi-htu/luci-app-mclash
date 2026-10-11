@@ -1,0 +1,92 @@
+#!/bin/sh
+# The foreground supervisor ties capture lifetime to the actual core process.
+umask 077
+CORE=/usr/bin/mihomo
+NETWORK=/usr/libexec/mclash-network
+DASHBOARD=/usr/libexec/mclash-dashboard
+CONFIG=/etc/mclash/config.yaml
+STATE=/var/run/mclash
+child=''
+logchild=''
+pipe=''
+LOG=/usr/libexec/mclash-log
+mode=''
+service_log() { logger -t mclash "$1"; "$LOG" append-service "$1" || true; }
+cleanup() {
+	trap '' HUP INT TERM
+	if [ -n "$child" ]; then
+		kill -TERM "$child" 2>/dev/null
+		# Give the core time to release its TUN interface and open connections.
+		for n in 1 2 3 4 5; do kill -0 "$child" 2>/dev/null || break; sleep 1; done
+		kill -KILL "$child" 2>/dev/null || true
+		wait "$child" 2>/dev/null || true
+	fi
+	cleanup_failed=0
+	"$NETWORK" down || cleanup_failed=1
+	"$DASHBOARD" down || cleanup_failed=1
+	# A core can create a persistent TUN before readiness and then fail to start.
+	if [ "$mode" = tun ]; then ip link delete dev Mclash 2>/dev/null || true; fi
+	if [ -n "$logchild" ]; then
+		for n in 1 2 3; do kill -0 "$logchild" 2>/dev/null || break; sleep 1; done
+		kill -TERM "$logchild" 2>/dev/null || true
+		wait "$logchild" 2>/dev/null || true
+	fi
+	[ -z "$pipe" ] || rm -f "$pipe"
+	rm -f "$STATE/core.pid"
+	if [ "$cleanup_failed" = 0 ]; then service_log '服务进程退出，清理完成'; else service_log '服务进程退出，清理失败，请检查服务日志'; fi
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+mkdir -p "$STATE"
+"$NETWORK" check || { service_log '接管环境检查失败，请查看服务日志'; exit 1; }
+mode="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG" | jsonfilter -e '@.mode' 2>/dev/null)"
+# Controller conflicts must be detected even when transparent capture is off.
+controller_port="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/^.*:/, "", $2); print $2; exit}' "$CONFIG")"
+if [ -n "$controller_port" ]; then
+ case "$controller_port" in *[!0-9]*) service_log 'Invalid controller port'; exit 1 ;; esac
+ [ "$controller_port" -ge 1 ] && [ "$controller_port" -le 65535 ] || exit 1
+ controller_hex="$(printf '%04X' "$controller_port")"
+ if awk -v port="$controller_hex" '$2 ~ (":" port "$") && ($4 == "0A" || FILENAME ~ /udp/) {found=1} END {exit !found}' /proc/net/tcp /proc/net/tcp6; then
+  service_log 'Controller port is already in use; change external-controller'; exit 1
+ fi
+fi
+case "$mode" in tun|tproxy)
+	# Do not mistake another service's listener for the core becoming ready.
+	if awk '$2 ~ /:(041D|1ED5)$/ {found=1} END {exit !found}' /proc/net/tcp /proc/net/udp /proc/net/tcp6 /proc/net/udp6; then
+		service_log 'DNS 1053 or TProxy 7893 is already in use'; exit 1
+	fi
+	;;
+esac
+service_log "接管方式：${mode:-none}，端口检查通过"
+"$DASHBOARD" up || { service_log '控制接口准备失败'; exit 1; }
+pipe="$STATE/log.$$.fifo"
+mkfifo -m 0600 "$pipe" || exit 1
+"$LOG" stream-core < "$pipe" &
+logchild=$!
+"$CORE" -d /etc/mclash -f "$CONFIG" > "$pipe" 2>&1 &
+child=$!
+printf '%s\n' "$child" > "$STATE/core.pid"
+service_log "Mihomo 已启动，PID=$child"
+if [ "$mode" = tun ] || [ "$mode" = tproxy ]; then
+	ready=0
+	for n in $(seq 1 30); do
+		kill -0 "$child" 2>/dev/null || break
+		dns=0; tcp=0; udp=0
+		awk '$2 ~ /:041D$/ {found=1} END {exit !found}' /proc/net/udp /proc/net/udp6 && dns=1
+		if [ "$mode" = tun ]; then
+			ip link show dev Mclash >/dev/null 2>&1 && tcp=1 && udp=1
+		else
+			awk '$2 ~ /:1ED5$/ && $4 == "0A" {found=1} END {exit !found}' /proc/net/tcp /proc/net/tcp6 && tcp=1
+			awk '$2 ~ /:1ED5$/ {found=1} END {exit !found}' /proc/net/udp /proc/net/udp6 && udp=1
+		fi
+		if [ "$dns" = 1 ] && [ "$tcp" = 1 ] && [ "$udp" = 1 ]; then ready=1; break; fi
+		sleep 1
+	done
+	if [ "$ready" != 1 ]; then service_log 'Capture listener readiness failed'; exit 1; fi
+	"$NETWORK" up || { service_log '应用接管失败，请查看服务日志'; exit 1; }
+fi
+service_log '启动完成'
+wait "$child"
+result=$?
+service_log "内核退出，退出码=$result"
+exit "$result"

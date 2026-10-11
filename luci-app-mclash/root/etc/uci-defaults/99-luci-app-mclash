@@ -1,0 +1,21 @@
+#!/bin/sh
+umask 077
+# Local Zashboard connects through the LAN; the supervisor restricts this port.
+config=/etc/mclash/config.yaml
+if [ -f "$config" ] && [ ! -L "$config" ]; then
+ candidate="$(mktemp /etc/mclash/.dashboard-config.XXXXXX)" || exit 1
+ if grep -q '^# Mclash OpenWrt 控制: true$' "$config"; then cat "$config" > "$candidate"; else
+ sed -E "s/^(external-controller:[[:space:]]*[\"']?)(127\\.0\\.0\\.1|localhost):/\\10.0.0.0:/" "$config" > "$candidate"
+ fi
+ chmod 0600 "$candidate"
+ mv -f "$candidate" "$config"
+fi
+if [ -f /var/log/mclash-service.log ] && [ ! -L /var/log/mclash-service.log ] && [ ! -e /var/log/mclash.log ] && [ ! -L /var/log/mclash.log ]; then
+ mv /var/log/mclash-service.log /var/log/mclash.log
+ chmod 0600 /var/log/mclash.log
+fi
+chmod 0700 /etc/mclash
+chmod 0600 /etc/mclash/config.yaml
+rm -f /tmp/luci-indexcache
+rm -rf /tmp/luci-modulecache
+exit 0

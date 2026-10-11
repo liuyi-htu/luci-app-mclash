@@ -1,0 +1,311 @@
+#!/bin/sh
+# Own table/chains/routes only. Values are parsed as data and strictly validated.
+umask 077
+CONFIG=/etc/mclash/config.yaml
+STATE=/var/run/mclash
+NFT=/usr/sbin/nft
+IP=/sbin/ip
+FWIN=/usr/share/nftables.d/chain-pre/input/90-mclash.nft
+FWOUT=/usr/share/nftables.d/chain-pre/output/90-mclash.nft
+FWFWD=/usr/share/nftables.d/chain-pre/forward/90-mclash.nft
+MODE=none
+ROUTER=1
+LAN_PROXY=1
+IPV6=0
+IFACES=''
+LAN=''
+ACCESS4=''
+ACCESS6=''
+LAN_CAPTURE=1
+BYPASS4='0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4'
+BYPASS6='::/128, ::1/128, fc00::/7, fe80::/10, ff00::/8'
+
+network_log() { /usr/libexec/mclash-log append-service "$1" 2>/dev/null || true; }
+
+fail() { network_log "失败：$1"; printf '%s\n' "$1" >&2; logger -t mclash "$1"; exit 1; }
+load() {
+	local options keys key name type
+	options="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG")"
+	[ -n "$options" ] || return 0
+	[ "$(printf '%s' "$options" | wc -c)" -le 4096 ] || fail '接管设置过大'
+	. /usr/share/libubox/jshn.sh
+	json_load "$options" || fail '无效接管设置'
+	json_get_var MODE mode
+	case "$MODE" in none|tun|tproxy) ;; *) fail '无效接管方式' ;; esac
+	for key in router ipv6; do
+		json_get_type type "$key"
+		[ "$type" = boolean ] || fail '无效接管开关'
+	done
+	json_get_type type lan
+	if [ -n "$type" ]; then
+		[ "$type" = boolean ] || fail '无效局域网代理开关'
+		json_get_var LAN_PROXY lan
+	fi
+	json_get_var ROUTER router
+	json_get_var IPV6 ipv6
+	json_get_type type interfaces
+	[ "$type" = array ] || fail '无效局域网接口列表'
+	json_select interfaces
+	json_get_keys keys
+	[ -n "$keys" ] && [ "$(printf '%s\n' "$keys" | wc -w)" -le 16 ] || fail '请指定 1 至 16 个局域网设备'
+	for key in $keys; do
+		json_get_type type "$key"
+		[ "$type" = string ] || fail '无效局域网设备名称'
+		json_get_var name "$key"
+		case "$name" in ''|lo|Mclash|*[!A-Za-z0-9_.-]*) fail '无效局域网设备名称' ;; esac
+		[ "${#name}" -le 15 ] || fail '局域网设备名称过长'
+		case " $IFACES " in *" $name "*) fail '局域网设备重复' ;; esac
+		IFACES="${IFACES}${IFACES:+ }$name"
+		LAN="${LAN}${LAN:+, }\"$name\""
+	done
+	json_select ..
+	LAN="{ $LAN }"
+	json_get_type type access
+	if [ -n "$type" ]; then
+		[ "$type" = array ] || fail '无效访问控制列表'
+		json_select access; json_get_keys keys
+		[ "$(printf '%s\n' "$keys" | wc -w)" -le 64 ] || fail '访问控制最多 64 条'
+		for key in $keys; do
+			json_get_type type "$key"
+			[ "$type" = string ] || fail '无效访问控制范围'
+			json_get_var name "$key"
+			case "$name" in ''|*[!0-9A-Fa-f:./-]*) fail '无效访问控制范围' ;; esac
+			[ "${#name}" -le 95 ] || fail '访问控制范围过长'
+			case "$name" in *:*) ACCESS6="${ACCESS6}${ACCESS6:+, }$name" ;; *) ACCESS4="${ACCESS4}${ACCESS4:+, }$name" ;; esac
+		 done
+		json_select ..
+	fi
+	LAN_CAPTURE="$LAN_PROXY"
+	[ -z "$ACCESS4$ACCESS6" ] || LAN_CAPTURE=1
+}
+lock() {
+	mkdir -p "$STATE"
+	mkdir "$STATE/network.lock" 2>/dev/null || fail '接管操作正在进行'
+	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
+	trap 'exit 1' HUP INT TERM
+}
+remove_fw_rules() {
+	local chain handle
+	for chain in input output forward; do
+		for handle in $("$NFT" -a list chain inet fw4 "$chain" 2>/dev/null | sed -n '/comment "Mclash managed"/s/.*# handle \([0-9]*\).*/\1/p'); do
+			"$NFT" delete rule inet fw4 "$chain" handle "$handle" || return 1
+		done
+	done
+}
+down() {
+	[ -f "$STATE/network.owned" ] || return 0
+	local result=0 family oldmode
+	oldmode="$(cat "$STATE/network.owned")"
+	network_log "清理接管：$oldmode，移除防火墙和路由规则"
+	rm -f "$FWIN" "$FWOUT" "$FWFWD" "$STATE/fw-input.nft" "$STATE/fw-output.nft" "$STATE/fw-forward.nft"
+	if "$NFT" list table inet mclash >/dev/null 2>&1; then "$NFT" delete table inet mclash || result=1; fi
+	remove_fw_rules || result=1
+	for family in 4 6; do
+		# Match the entire rule, never delete an unrelated rule just by preference.
+		"$IP" -"$family" rule del pref 1166 fwmark 0x166/0xffffffff lookup 166 2>/dev/null || true
+		if [ "$oldmode" = tproxy ]; then
+			"$IP" -"$family" route del local default dev lo table 166 2>/dev/null || true
+		elif [ "$oldmode" = tun ]; then
+			"$IP" -"$family" route del default dev Mclash table 166 2>/dev/null || true
+		fi
+		"$IP" -"$family" rule show 2>/dev/null | grep -Eq '^1166:.*fwmark 0x166(/0xffffffff)? lookup 166([[:space:]]|$)' && result=1
+		"$IP" -"$family" route show table 166 2>/dev/null | grep -Eq '^(local default dev lo|default dev Mclash)([[:space:]]|$)' && result=1
+	done
+	if [ "$oldmode" = tun ] && "$IP" link show dev Mclash >/dev/null 2>&1; then
+		"$IP" link delete dev Mclash || result=1
+	fi
+	if [ "$result" = 0 ]; then rm -f "$STATE/network.owned" "$STATE/network.ready"; network_log '接管清理完成'; else network_log '接管清理不完整，请检查残留规则'; fi
+	return "$result"
+}
+check() {
+	[ "$MODE" != none ] || return 0
+	[ -x "$NFT" ] && [ -x "$IP" ] && command -v fw4 >/dev/null 2>&1 || fail '请安装 firewall4、nftables 和 ip-full'
+	"$NFT" list chain inet fw4 input >/dev/null 2>&1 || fail 'firewall4 尚未运行'
+	[ "$(uci -q get firewall.@defaults[0].auto_includes)" != 0 ] || fail 'firewall4 auto_includes 已禁用'
+	[ "$MODE" != tun ] || [ -c /dev/net/tun ] || fail 'TUN 需要 kmod-tun 和 /dev/net/tun'
+	if [ "$MODE" = tun ] && [ "${1:-before}" != ready ]; then
+		"$IP" link show dev Mclash >/dev/null 2>&1 && fail 'TUN 设备 Mclash 已被占用'
+	fi
+	for name in $IFACES; do "$IP" link show dev "$name" >/dev/null 2>&1 || fail "局域网设备不存在：$name"; done
+	[ ! -f "$STATE/network.owned" ] || fail '上次接管规则尚未清理'
+	"$NFT" list table inet mclash >/dev/null 2>&1 && fail 'nftables 的 mclash 表已被占用'
+	for family in 4 6; do
+		[ -z "$("$IP" -"$family" route show table 166 2>/dev/null)" ] || fail '路由表 166 已被占用'
+		"$IP" -"$family" rule show | grep -Eq '(^1166:|lookup 166([[:space:]]|$))' && fail '策略路由 1166 或路由表 166 已被占用'
+	done
+	for path in "$FWIN" "$FWOUT" "$FWFWD"; do [ ! -e "$path" ] || fail 'Mclash 防火墙包含文件已被占用'; done
+	return 0
+}
+write_lan_bypass() {
+	local guard="${1:-}" name prefix
+	for name in $IFACES; do
+		for prefix in $("$IP" -4 route show dev "$name" scope link | awk '$1 ~ /^[0-9.]+\/[0-9]+$/ && $1 !~ /\/0$/ {print $1}'); do
+			printf '    %sip daddr %s return\n' "$guard" "$prefix"
+		done
+		for prefix in $("$IP" -6 route show dev "$name" proto kernel | awk '$1 ~ /^[0-9A-Fa-f:]+\/[0-9]+$/ && $1 !~ /\/0$/ {print $1}'); do
+			printf '    %sip6 daddr %s return\n' "$guard" "$prefix"
+		done
+	done
+}
+write_access_filter() {
+	[ "$LAN_PROXY" != 1 ] || return 0
+	printf '    meta nfproto ipv4 ip saddr != @access4 return\n    meta nfproto ipv6 ip6 saddr != @access6 return\n'
+}
+write_access_sets() {
+	[ "$LAN_PROXY" != 1 ] || return 0
+	printf '  set access4 { type ipv4_addr; flags interval; auto-merge;'
+	[ -z "$ACCESS4" ] || printf ' elements = { %s };' "$ACCESS4"
+	printf ' }\n  set access6 { type ipv6_addr; flags interval; auto-merge;'
+	[ -z "$ACCESS6" ] || printf ' elements = { %s };' "$ACCESS6"
+	printf ' }\n'
+}
+write_rules() {
+	local source4 source6 localout LAN_BYPASS DNS_BYPASS ACCESS_SETS ACCESS_FILTER FILTER6 DNS_ROUTER_BYPASS DNSMASQ_UID
+	LAN_BYPASS="$(write_lan_bypass)"
+	DNS_BYPASS="$(write_lan_bypass 'fib daddr type != local ')"
+	ACCESS_SETS="$(write_access_sets)"
+	ACCESS_FILTER="$(write_access_filter)"
+	DNS_ROUTER_BYPASS=''
+	if [ "$LAN_PROXY" != 1 ]; then
+		DNSMASQ_UID="$(id -u dnsmasq 2>/dev/null)"
+		case "$DNSMASQ_UID" in ''|*[!0-9]*) DNS_ROUTER_BYPASS='    return' ;; *) DNS_ROUTER_BYPASS="    meta skuid $DNSMASQ_UID return" ;; esac
+	fi
+	FILTER6=''
+	[ "$LAN_PROXY" = 1 ] || FILTER6='ip6 saddr @access6 '
+	cat > "$STATE/network.nft" <<RULES
+table inet mclash {
+$ACCESS_SETS
+  chain protect {
+    type filter hook prerouting priority -160; policy accept;
+    meta mark 0x167 return
+    ct direction reply return
+    iifname != $LAN iifname != "lo" meta l4proto { tcp, udp } th dport { 7893, 1053 } fib daddr type local drop
+RULES
+	if [ "$IPV6" = 0 ] && [ "$LAN_CAPTURE" = 1 ]; then
+		cat >> "$STATE/network.nft" <<RULES
+$LAN_BYPASS
+    iifname $LAN meta nfproto ipv6 ${FILTER6}ip6 daddr != { $BYPASS6 } fib daddr type != local meta l4proto { tcp, udp } drop
+RULES
+	fi
+	cat >> "$STATE/network.nft" <<RULES
+  }
+  chain capture {
+    type filter hook prerouting priority -150; policy accept;
+    meta mark 0x167 return
+    ct direction reply return
+RULES
+	if [ "$MODE" = tproxy ] && [ "$ROUTER" = 1 ]; then
+		printf '    iifname "lo" meta mark 0x166 meta l4proto { tcp, udp } tproxy to :7893 accept\n' >> "$STATE/network.nft"
+	fi
+	cat >> "$STATE/network.nft" <<RULES
+    iifname != $LAN return
+$ACCESS_FILTER
+$LAN_BYPASS
+    meta l4proto { tcp, udp } th dport 53 return
+    fib daddr type local return
+    ip daddr { $BYPASS4 } return
+    ip6 daddr { $BYPASS6 } return
+RULES
+	[ "$IPV6" = 1 ] || printf '    meta nfproto ipv6 return\n' >> "$STATE/network.nft"
+	if [ "$MODE" = tproxy ]; then
+		printf '    meta l4proto { tcp, udp } meta mark set 0x166 tproxy to :7893 accept\n' >> "$STATE/network.nft"
+	else
+		printf '    meta l4proto { tcp, udp } meta mark set 0x166\n' >> "$STATE/network.nft"
+	fi
+	cat >> "$STATE/network.nft" <<RULES
+  }
+  chain dns_lan {
+    type nat hook prerouting priority -101; policy accept;
+    meta mark 0x167 return
+    iifname != $LAN return
+$ACCESS_FILTER
+$DNS_BYPASS
+    fib daddr type != local ip daddr { $BYPASS4 } return
+    fib daddr type != local ip6 daddr { $BYPASS6 } return
+    iifname $LAN meta nfproto ipv4 meta l4proto { tcp, udp } th dport 53 redirect to :1053
+RULES
+	if [ "$IPV6" = 1 ]; then printf '    iifname %s meta nfproto ipv6 meta l4proto { tcp, udp } th dport 53 redirect to :1053\n' "$LAN" >> "$STATE/network.nft"; fi
+	printf '  }\n' >> "$STATE/network.nft"
+	if [ "$ROUTER" = 1 ]; then
+		cat >> "$STATE/network.nft" <<RULES
+  chain router {
+    type route hook output priority -150; policy accept;
+    meta mark 0x167 return
+    ct direction reply return
+    fib daddr type local return
+    ip daddr { $BYPASS4 } return
+    ip6 daddr { $BYPASS6 } return
+$LAN_BYPASS
+RULES
+		if [ "$IPV6" = 0 ]; then printf '    meta nfproto ipv6 meta l4proto { tcp, udp } drop\n    meta nfproto ipv6 return\n' >> "$STATE/network.nft"; fi
+		cat >> "$STATE/network.nft" <<RULES
+    meta l4proto { tcp, udp } th dport 53 return
+    meta l4proto { tcp, udp } meta mark set 0x166
+  }
+  chain dns_router {
+    type nat hook output priority -101; policy accept;
+    meta mark 0x167 return
+    ct direction reply return
+$DNS_ROUTER_BYPASS
+$DNS_BYPASS
+    fib daddr type != local ip daddr { $BYPASS4 } return
+    fib daddr type != local ip6 daddr { $BYPASS6 } return
+    meta nfproto ipv4 meta l4proto { tcp, udp } th dport 53 redirect to :1053
+RULES
+		if [ "$IPV6" = 1 ]; then printf '    meta nfproto ipv6 meta l4proto { tcp, udp } th dport 53 redirect to :1053\n' >> "$STATE/network.nft"; fi
+		printf '  }\n' >> "$STATE/network.nft"
+	fi
+	printf '}\n' >> "$STATE/network.nft"
+	mkdir -p "$(dirname "$FWIN")" "$(dirname "$FWOUT")" "$(dirname "$FWFWD")"
+	printf 'iifname %s meta l4proto { tcp, udp } th dport 1053 accept comment "Mclash managed"\n' "$LAN" > "$STATE/fw-input.nft"
+	if [ "$MODE" = tproxy ]; then
+		[ "$LAN_CAPTURE" != 1 ] || printf 'iifname %s meta mark 0x166 meta l4proto { tcp, udp } accept comment "Mclash managed"\n' "$LAN" >> "$STATE/fw-input.nft"
+		if [ "$ROUTER" = 1 ]; then printf 'iifname "lo" meta mark 0x166 meta l4proto { tcp, udp } accept comment "Mclash managed"\n' >> "$STATE/fw-input.nft"; fi
+	else
+		[ "$LAN_CAPTURE" != 1 ] || printf 'iifname %s oifname "Mclash" accept comment "Mclash managed"\n' "$LAN" > "$STATE/fw-forward.nft"
+		printf 'iifname "Mclash" ct state established,related accept comment "Mclash managed"\n' >> "$STATE/fw-input.nft"
+		printf 'iifname "Mclash" meta l4proto tcp accept comment "Mclash managed"\n' >> "$STATE/fw-input.nft"
+	fi
+	if [ "$ROUTER" = 1 ]; then printf 'meta mark 0x166 accept comment "Mclash managed"\n' > "$STATE/fw-output.nft"; fi
+	for chain in input output forward; do
+		path="/usr/share/nftables.d/chain-pre/$chain/90-mclash.nft"
+		# Broken links are ignored by fw4 after reboot; no stale accepts persist.
+		[ ! -f "$STATE/fw-$chain.nft" ] || ln -sf "$STATE/fw-$chain.nft" "$path"
+		[ ! -f "$path" ] || sed "s/^/insert rule inet fw4 $chain /" "$path" >> "$STATE/network.nft"
+	done
+}
+up() {
+	[ "$MODE" != none ] || { network_log '关闭自动接管，不修改策略路由和接管规则'; return 0; }
+	network_log "准备接管：mode=$MODE interfaces=$IFACES lan=$LAN_PROXY router=$ROUTER ipv6=$IPV6"
+	[ "$LAN_PROXY" = 1 ] || network_log "来源白名单：IPv4=${ACCESS4:-空} IPv6=${ACCESS6:-空}"
+	check ready
+	# Claim only the named table and exact policy route before any mutation.
+	printf '%s\n' "$MODE" > "$STATE/network.owned"
+	trap 'down; rmdir "$STATE/network.lock" 2>/dev/null' EXIT
+	set -e
+	write_rules
+	set +e
+	"$NFT" -c -f "$STATE/network.nft" || fail 'nftables 校验失败，请确认 kmod-nft-tproxy 等模块已安装'
+	for family in 4 6; do
+		[ "$family" = 4 ] || [ "$IPV6" = 1 ] || continue
+		if [ "$MODE" = tproxy ]; then
+			"$IP" -"$family" route add local default dev lo table 166 || fail '创建 TProxy 路由失败'
+		else
+			"$IP" -"$family" route add default dev Mclash table 166 || fail '创建 TUN 路由失败'
+		fi
+		"$IP" -"$family" rule add pref 1166 fwmark 0x166/0xffffffff lookup 166 || fail '创建策略路由失败'
+		network_log "IPv$family：fwmark 0x166 → 路由表 166，pref 1166；$("$IP" -"$family" route show table 166)"
+	done
+	"$NFT" -f "$STATE/network.nft" || fail '应用 nftables 接管规则失败'
+	network_log '接管已启用，nftables 规则已应用'
+	printf '%s\n' "$MODE" > "$STATE/network.ready"
+	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
+}
+[ "$#" = 1 ] || fail '参数错误'
+lock
+case "$1" in
+	check) down || fail '无法清理旧接管规则'; load; check; [ "$MODE" != none ] || network_log '关闭自动接管，不修改策略路由和接管规则'; true ;;
+	up) load; up ;;
+	down) down || fail '清理接管规则失败，请查看日志' ;;
+	*) fail '不支持的接管操作' ;;
+esac

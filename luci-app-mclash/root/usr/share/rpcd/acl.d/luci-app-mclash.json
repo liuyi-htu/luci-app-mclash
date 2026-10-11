@@ -1,0 +1,112 @@
+{
+  "luci-app-mclash": {
+    "description": "Manage Mclash service and its Mihomo configuration",
+    "read": {
+      "file": {
+        "/usr/libexec/mclash-ui status": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui read-config": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui update-status": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui update-logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui devices": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui service-logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-telegram": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-openai": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-aliyun": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-google": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-github": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui probe-youtube": [
+          "exec"
+        ]
+      }
+    },
+    "write": {
+      "file": {
+        "/etc/mclash/config.upload.yaml": [
+          "write"
+        ],
+        "/usr/libexec/mclash-ui validate": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui save": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui start": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui stop": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui restart": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui enable": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui disable": [
+          "exec"
+        ],
+        "/etc/mclash/api.request.json": [
+          "write"
+        ],
+        "/etc/mclash/subscription.url": [
+          "write"
+        ],
+        "/usr/libexec/mclash-ui api": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui fetch-subscription": [
+          "exec"
+        ],
+        "/tmp/mclash-mihomo.upload": [
+          "write"
+        ],
+        "/usr/libexec/mclash-ui check-update": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui update-online": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui update-local": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui clear-logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui clear-update-logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui clear-service-logs": [
+          "exec"
+        ],
+        "/usr/libexec/mclash-ui cancel-fetch": [
+          "exec"
+        ]
+      }
+    }
+  }
+}
