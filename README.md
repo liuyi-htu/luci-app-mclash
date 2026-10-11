@@ -106,7 +106,10 @@ cd luci-app-mclash
 
 ## 直接安装 APK／IPK
 
-已取得编译好的安装包时，可以直接安装，无需编译固件。当前仓库提供源码；安装包可由上述 SDK 或固件编译步骤生成。以下以 `1.0.0-r1` 为例，文件名和路由器地址请替换为实际值。
+从 [GitHub Releases](https://github.com/liuyi-htu/luci-app-mclash/releases/latest) 下载与设备包管理器匹配的安装包及同名 `.sha256` 文件，即可直接安装，无需编译固件。也可由上述 SDK 或固件编译步骤生成安装包。以下以 `1.0.0-r1` 为例，文件名和路由器地址请替换为实际值；下载的文件请放入 `dist/`，或调整上传命令中的本地路径。
+
+- [下载 APK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.0/luci-app-mclash-1.0.0-r1.apk) · [APK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.0/luci-app-mclash-1.0.0-r1.apk.sha256)
+- [下载 IPK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.0/luci-app-mclash_1.0.0-r1_all.ipk) · [IPK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.0/luci-app-mclash_1.0.0-r1_all.ipk.sha256)
 
 ### APK 设备
 
