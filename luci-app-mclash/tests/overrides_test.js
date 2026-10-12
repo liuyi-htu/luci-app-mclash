@@ -6,6 +6,14 @@ const source = fs.readFileSync(__dirname + '/../htdocs/luci-static/resources/mcl
 const CoreClass = new Function('baseclass', source)({extend: members => function() { Object.assign(this, members); }});
 assert.equal(typeof CoreClass, 'function', 'LuCI modules must export a constructor');
 const api = new CoreClass();
+const dnsBase='# keep comment\nmixed-port: 7890\ndns:\n  enable: true\n  nameserver: [1.1.1.1]\nrules: [MATCH,DIRECT]\n';
+const dnsChanged=api.call('dns',dnsBase,{yaml:'enable: false\nnameserver: [https://dns.example/dns-query]\nnameserver-policy:\n  "+.example.org": [8.8.8.8]\n'});
+assert.match(dnsChanged,/# keep comment/);
+assert.match(dnsChanged,/mixed-port: 7890/);
+assert.match(api.call('summary',dnsChanged).dnsYaml,/nameserver-policy/);
+assert.match(api.call('summary',dnsChanged).dnsYaml,/enable: false/);
+assert.throws(()=>api.call('dns',dnsBase,{yaml:'[1, 2]'}),/DNS/);
+assert.throws(()=>api.call('dns',dnsBase,{yaml:'enable: ['}));
 let config = `proxies:
   - {name: 上海-ws, type: vmess, server: a.example, port: 443, uuid: 00000000-0000-4000-8000-000000000001, network: ws, ws-opts: {headers: {host: old.example, X-Test: keep}}, tls: true}
   - {name: KR-http, type: vmess, server: b.example, port: 80, uuid: 00000000-0000-4000-8000-000000000002, network: http, http-opts: {headers: {HOST: old.example}}}

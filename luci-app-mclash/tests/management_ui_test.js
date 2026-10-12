@@ -18,6 +18,12 @@ const nodes=n=>n&&typeof n==='object'?[n,...(n.children||[]).flatMap(nodes)]:[];
 const buttons=n=>nodes(n).filter(n=>n.tag==='button');
 async function click(root,label){const n=buttons(root).find(n=>n.attrs['aria-label']===label||n.children[0]===label);assert.ok(n,label);await n.attrs.click({currentTarget:n});}
 (async()=>{
+ data.dnsYaml='enable: true\nnameserver:\n  - https://dns.example/dns-query\n';
+ await click(manager.element,'DNS 管理');
+ assert.deepEqual(buttons(dialog).map(n=>n.children[0]),['取消','保存']);
+ const dns=nodes(dialog).find(n=>n.attrs['aria-label']==='DNS 配置（YAML）');
+ assert.equal(dns.value,data.dnsYaml);
+ dns.value='enable: false\n';await click(dialog,'保存');assert.equal(saved.yaml,'enable: false\n');
  await click(manager.element,'代理组管理');await click(dialog,'编辑');
  const field=label=>nodes(dialog).find(n=>n.attrs['aria-label']===label);
  const type=field('类型'),url=field('测速地址'),interval=field('测速间隔（秒）');

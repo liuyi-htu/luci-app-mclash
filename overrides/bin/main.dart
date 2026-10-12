@@ -38,6 +38,7 @@ String handle(String action, String content, String payload, {bool normalized = 
         final config = loadYaml(content) as Map;
         result = {
           'network': networkOptions(content),
+          'dnsYaml': config['dns'] == null ? '' : (YamlEditor('')..update([], plain(config['dns']))).toString(),
           'controller': config['external-controller'] ?? '',
           'secret': config['secret'] ?? '',
           'manualNodes': savedManualNodeNames(content),
@@ -58,6 +59,14 @@ String handle(String action, String content, String payload, {bool normalized = 
         result = applyController(content, args);
       case 'network':
         result = applyNetwork(content, args);
+      case 'dns':
+        final dns = loadYaml(args['yaml'] as String);
+        if (dns is! Map || dns.isEmpty) {
+          throw const FormatException('DNS 配置须为非空 YAML 对象');
+        }
+        final editor = YamlEditor(content);
+        editor.update(['dns'], plain(dns));
+        result = editor.toString();
       case 'addNode':
         result = addNodeLink(content, args['link'] as String);
       case 'deleteNode':

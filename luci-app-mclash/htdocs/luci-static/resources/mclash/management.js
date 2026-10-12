@@ -174,19 +174,27 @@ return baseclass.extend({
 			}, function(order) { return change('rules', {rules: order.map(function(index) { return rules[Number(index)]; })}); }, function(index) { return (Number(index) + 1) + '-' + rules[Number(index)]; }),
 				E('div', {'class': 'mclash-actions'}, [action(_('新增规则'), function() { editRule(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
+		function openDNS() {
+			var dns = area(summary().dnsYaml || 'enable: true\n', 16);
+			modal(_('DNS 管理'), [field(_('DNS 配置（YAML）'), dns)], function() {
+				return change('dns', {yaml: dns.value});
+			});
+		}
 		var actions = {
 			addNode: [_('添加节点'), openNodes], host: [_('修改 Host'), openHost], prependProxy: [_('链式节点'), openChains],
-			groups: [_('代理组管理'), openGroups], ruleProviders: [_('规则集管理'), openProviders], rules: [_('规则管理'), openRules]
+			groups: [_('代理组管理'), openGroups], ruleProviders: [_('规则集管理'), openProviders], rules: [_('规则管理'), openRules], dns: [_('DNS 管理'), openDNS]
 		};
 		var menu = E('div', {'class': 'mclash-rule-groups'});
-		var icons = {addNode: '+', host: '⌘', prependProxy: '⇄', groups: '◈', ruleProviders: '▤', rules: '≡'};
+		var icons = {addNode: '+', host: '⌘', prependProxy: '⇄', groups: '◈', ruleProviders: '▤', rules: '≡', dns: '⌕'};
 		function refreshMenu() {
 			while (menu.firstChild) menu.removeChild(menu.firstChild);
 			var order;
 			try { order = summary().actions; } catch (_) { order = Object.keys(actions); }
+			order = order.slice();
+			if (order.indexOf('dns') < 0) order.push('dns');
 			[
 				{key:'nodes',title:_('节点管理'),keys:['addNode','host','prependProxy']},
-				{key:'rules',title:_('策略与规则'),keys:['groups','ruleProviders','rules']}
+				{key:'rules',title:_('策略与规则'),keys:['groups','ruleProviders','rules','dns']}
 			].forEach(function(group) {
 				var tiles = group.keys.filter(function(key) { return order.indexOf(key) >= 0; }).map(function(key) {
 					var tile = action(actions[key][0], actions[key][1], 'mclash-rule-tile');

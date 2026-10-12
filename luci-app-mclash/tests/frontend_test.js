@@ -79,7 +79,7 @@ async function main() {
   const Module=new Function('baseclass','E','_','ui','overrides','notifications',fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/mclash/management.js','utf8'))(
    {extend:x=>function(){Object.assign(this,x);}},E,x=>x,{}, {call:()=>({actions:['addNode','host','prependProxy','groups','ruleProviders','rules']})},{show(){}});
   const manager=new Module().render(()=>'',async()=>'',()=>active);
-  manager.setRunning(true); assert.equal(buttons.length,6); assert.ok(buttons.every(n=>n.disabled));
+  manager.setRunning(true); assert.equal(buttons.length,7); assert.ok(buttons.every(n=>n.disabled));
   manager.setRunning(false); assert.ok(buttons.every(n=>!n.disabled));
   active=true; await buttons[0].attrs.click({currentTarget:buttons[0]});
   assert.ok(!buttons[0].mclashBusy,'a running core blocks the operation before opening its modal');
