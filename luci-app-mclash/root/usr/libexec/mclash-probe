@@ -1,65 +1,26 @@
 #!/bin/sh
 umask 077
 CURL=/usr/bin/curl
-. /usr/share/libubox/jshn.sh
 [ "$#" -eq 1 ] || exit 1
-kind="$1"; format=trace; host=''
+kind="$1"
 case "$kind" in
- claude) host=claude.ai ;;
- openai) host=chatgpt.com ;;
- cloudflare) host=www.cloudflare.com ;;
- discord) host=discord.com ;;
- aliyun)
-  format=jsonp
-  nonce="$(hexdump -n 8 -v -e '1/1 "%02x"' /dev/urandom 2>/dev/null)"
-  url="https://$(date +%s)-$$-${nonce:-0}.dns-detect.alicdn.com/api/detect/DescribeDNSLookup?cb=mclashProbe"
-  ;;
- tencent) format=jsonp; url='https://r.inews.qq.com/api/ip2city?otype=jsonp&callback=mclashProbe' ;;
+ telegram) url='https://telegram.org/' ;;
+ openai) url='https://chatgpt.com/' ;;
+ baidu) url='https://www.baidu.com/' ;;
+ google) url='https://www.google.com/generate_204' ;;
+ youtube) url='https://www.youtube.com/generate_204' ;;
+ github) url='https://github.com/' ;;
  *) exit 1 ;;
 esac
-[ "$format" != trace ] || url="https://$host/cdn-cgi/trace"
-probe_file="$(mktemp /tmp/mclash-probe.XXXXXX)" || exit 1
-trap 'rm -f "$probe_file"' EXIT
-trap 'exit 1' HUP INT TERM
-elapsed="$("$CURL" --silent --location --connect-timeout 4 --max-time 10 --proto '=https' --proto-redir '=https' --noproxy '*' --fail --max-filesize 8192 --max-redirs 0 --output "$probe_file" --write-out '%{time_total}' "$url" 2>/dev/null)"
+elapsed="$("$CURL" --silent --head --location --connect-timeout 4 --max-time 10 --proto '=https' --proto-redir '=https' --noproxy '*' --max-redirs 3 --output /dev/null --write-out '%{time_total}' "$url" 2>/dev/null)"
 request_result=$?
-ip=''; country=''; region=''; ip_ok=0; latency_ok=0
+latency_ok=0
 if [ "$request_result" = 0 ]; then
  case "$elapsed" in ''|*[!0-9.]*|*.*.*) ;; *) latency_ok=1 ;; esac
- if [ "$format" = trace ]; then
-  returned_host="$(sed -n 's/^h=//p' "$probe_file" | tr -d '\r' | head -1)"
-  if [ "$returned_host" = "$host" ]; then
-   ip="$(sed -n 's/^ip=//p' "$probe_file" | tr -d '\r' | head -1)"
-   country="$(sed -n 's/^loc=//p' "$probe_file" | tr -d '\r' | head -1)"
-  fi
- else
-  data="$(sed -n 's/^mclashProbe(\(.*\))[; ]*$/\1/p' "$probe_file")"
-  if [ "$kind" = aliyun ] && [ "$(printf '%s' "$data" | jsonfilter -e '@.retCode' 2>/dev/null)" = 200 ]; then
-   ip="$(printf '%s' "$data" | jsonfilter -e '@.content.localIp' 2>/dev/null)"
-   country="$(printf '%s' "$data" | jsonfilter -e '@.content.ipCountry' 2>/dev/null)"
-   province="$(printf '%s' "$data" | jsonfilter -e '@.content.ipProvince' 2>/dev/null)"
-   operator="$(printf '%s' "$data" | jsonfilter -e '@.content.ipOperator' 2>/dev/null)"
-   region="$province $operator"
-  elif [ "$kind" = tencent ] && [ "$(printf '%s' "$data" | jsonfilter -e '@.ret' 2>/dev/null)" = 0 ]; then
-   ip="$(printf '%s' "$data" | jsonfilter -e '@.ip' 2>/dev/null)"
-   country="$(printf '%s' "$data" | jsonfilter -e '@.country' 2>/dev/null)"
-   province="$(printf '%s' "$data" | jsonfilter -e '@.province' 2>/dev/null)"
-   city="$(printf '%s' "$data" | jsonfilter -e '@.city' 2>/dev/null)"
-   region="$province $city"
-  fi
- fi
 fi
-case "$ip" in ''|*[!0-9A-Fa-f:.]*) ;; *.*) printf '%s' "$ip" | awk -F. 'NF!=4 {exit 1} {for(i=1;i<=4;i++) if($i !~ /^[0-9]+$/ || length($i)>3 || $i+0>255) exit 1}' && ip_ok=1 ;; *:*) ip_ok=1 ;; esac
+. /usr/share/libubox/jshn.sh
 json_init
-json_add_boolean ip_supported 1
-if [ "$latency_ok" = 1 ] && [ "$ip_ok" = 1 ]; then json_add_boolean ok 1; else json_add_boolean ok 0; fi
-if [ "$ip_ok" = 1 ]; then
- json_add_string ip "$ip"
- [ -z "$country" ] || json_add_string country "$country"
- region="$(printf '%s\n' "$region" | awk '{$1=$1; print}')"
- [ -z "$region" ] || json_add_string region "$region"
-else
- json_add_string ip_error '目标站点出口查询失败'
-fi
+json_add_boolean ip_supported 0
+if [ "$latency_ok" = 1 ]; then json_add_boolean ok 1; else json_add_boolean ok 0; fi
 if [ "$latency_ok" = 1 ]; then json_add_int latency "$(awk -v seconds="$elapsed" 'BEGIN {printf "%.0f",seconds*1000}')"; else json_add_string latency_error '连接失败或超时'; fi
 json_dump

@@ -33,6 +33,9 @@ exit 1
         init = self.base / 'init'
         init.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(self.calls) + '"\n')
         init.chmod(0o755)
+        network = self.base / 'network'
+        network.write_text('#!/bin/sh\nexit 0\n')
+        network.chmod(0o755)
         lock_source = (ROOT / 'root/usr/libexec/mclash-lock').read_text().replace('mkdir -p /var/lock', ':')
         (self.base / 'lock-helper').write_text(lock_source)
         source = (ROOT/'root/usr/libexec/mclash-ui').read_text()
@@ -44,6 +47,7 @@ exit 1
             '/etc/mclash/config.yaml': str(self.config),
             '/etc/mclash/subscription.url': str(self.base/'url'), '/tmp/mclash-subscription.XXXXXX': str(self.base/'fetch.XXXXXX'), '/tmp/mclash-subscription-headers.XXXXXX': str(self.base/'headers.XXXXXX'), '/etc/mclash/api.request.json': str(self.base/'request'), '/usr/bin/curl': str(self.base/'curl'), '/var/lock/mclash-ui.lock': str(self.lock), '/var/log': str(self.base / 'logs'),
             '/usr/libexec/mclash-log': str(self.base / 'log-helper'),
+            '/usr/libexec/mclash-network': str(network),
             '/etc/mclash/.config.XXXXXX': str(self.base/'.config.XXXXXX'),
             'mkdir -p /var/lock': ':',
         }.items():
@@ -230,6 +234,16 @@ printf 'proxies: []\\n' > "$output"
         result=self.run_command('fetch-subscription')
         self.assertNotEqual(result.returncode,0); self.assertFalse(self.lock.exists())
         self.assertFalse(list(self.base.glob('fetch.*')))
+
+    def test_stop_waits_until_service_is_inactive(self):
+        fakebin = self.base / 'stop-bin'; fakebin.mkdir(); counter = self.base / 'status-count'
+        (fakebin / 'ubus').write_text('#!/bin/sh\ncount=$(cat "' + str(counter) + '" 2>/dev/null || echo 0)\ncount=$((count + 1))\nprintf "%s" "$count" > "' + str(counter) + '"\nif [ "$count" -lt 3 ]; then echo \'{"mclash":{"instances":{"main":{"running":true}}}}\'; else echo \'{}\'; fi\n')
+        (fakebin / 'jsonfilter').write_text('#!/bin/sh\ndata=$(cat)\ncase "$data" in *\'"running":true\'*) echo true ;; esac\n')
+        for executable in [fakebin / 'ubus', fakebin / 'jsonfilter']: executable.chmod(0o755)
+        result = subprocess.run(['busybox','ash',str(self.script),'stop'],capture_output=True,text=True,timeout=5,
+                                env=dict(os.environ,PATH=str(fakebin)+':'+os.environ['PATH']))
+        self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout,'操作完成\n')
+        self.assertGreaterEqual(int(counter.read_text()),3);self.assertEqual(self.calls.read_text(),'stop\n')
 
     def test_lock_and_unknown_commands(self):
         self.lock.mkdir()

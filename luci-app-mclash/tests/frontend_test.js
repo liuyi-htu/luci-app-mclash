@@ -143,7 +143,7 @@ async function main() {
   exec:async (path,args) => {
    assert.equal(path,'/usr/libexec/mclash-ui'); calls.push(args[0]);
    if (args[0]==='status') return {code:0,stdout:JSON.stringify({installed:true,running:actualRunning,enabled:false,version:'test'})};
-   if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip_supported:true,ip:'203.0.113.1',country:'US',region:'测试地区',latency:125})};
+   if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip_supported:false,latency:125})};
    if (args[0]==='devices') return {code:0,stdout:'{"devices":["br-lan","br-guest"]}'};
    if (args[0]==='save' && rejectSave) return {code:1,stderr:'配置校验失败'};
    if (args[0]==='read-config') return {code:0,stdout:savedText};
@@ -169,18 +169,17 @@ async function main() {
   const node=nodes.filter(n=>n.tag==='button' && (n.attrs['aria-label']===label || n.children[0]===label)).at(-1);
   assert.ok(node,label+' must exist'); await node.attrs.click({currentTarget:node});
  };
- for (const label of ['Claude 连接','OpenAI 连接','阿里连接','腾讯连接','Cloudflare 连接','Discord 连接']) {
+ for (const label of ['Telegram 连接','OpenAI 连接','百度连接','谷歌连接','YouTube 连接','GitHub 连接']) {
   await click(label);
   const card=nodes.find(n=>n.attrs['aria-label']===label);
   const value=card.children[1].children[1];
-  assert.equal(value.children.length,4);
-  assert.equal(value.children[1].children[1],'203.0.113.1');
-  assert.equal(value.children[2].children[1],'国家：美国');
-  assert.equal(value.children[3].children[1],'地区：测试地区');
+  assert.equal(value.children.length,1);
   assert.equal(value.children[0].children[1],'125 ms');
   assert.equal(card.disabled,false);
  }
  assert.equal(nodes.filter(n=>n.tag==='img' && n.attrs.class==='mclash-brand-icon').length,6);
+ assert.ok(!nodes.some(n=>n.attrs.class==='mclash-capture-state'),'running card does not show capture mode');
+ assert.ok(nodes.some(n=>n.tag==='style' && String(n.children).includes('.mclash-status-grid>.mclash-status-card{height:98px}')),'status cards use one fixed desktop height');
  const configPane=nodes.find(n=>n.attrs['data-tab']==='config'); assert.ok(configPane.children.includes(nodes.find(n=>n.tag==='pre')));
  assert.doesNotMatch(nodes.find(n=>n.tag==='pre').children[0],/链路设置|节点链路/);
  assert.match(nodes.find(n=>n.tag==='pre').children[0],/# other comment\nmixed-port: 7890/);
@@ -199,7 +198,7 @@ async function main() {
  assert.ok(!text(captureSection).includes('检测来源：'),'capture selector is removed');
  const statusGrid=nodes.find(n=>n.attrs.class==='mclash-status-grid');
  assert.equal(statusGrid.children.at(-1),probeSource);
- assert.deepEqual(statusGrid.children.slice(2,8).map(n=>n.attrs['aria-label']),['Claude 连接','OpenAI 连接','阿里连接','腾讯连接','Cloudflare 连接','Discord 连接']);
+ assert.deepEqual(statusGrid.children.slice(2,8).map(n=>n.attrs['aria-label']),['Telegram 连接','OpenAI 连接','百度连接','谷歌连接','YouTube 连接','GitHub 连接']);
  await click('检测来源'); assert.equal(probeSource.value,'router');
  probeSource.disabled=true; await click('检测来源'); assert.equal(probeSource.value,'router');
  probeSource.disabled=false; await click('检测来源'); assert.equal(probeSource.value,'browser');

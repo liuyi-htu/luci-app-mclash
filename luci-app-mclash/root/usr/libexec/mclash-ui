@@ -54,7 +54,7 @@ lock() {
 [ "$#" -eq 1 ] || fail '参数错误'
 ACTION="$1"
 case "$1" in
- probe-claude|probe-openai|probe-cloudflare|probe-aliyun|probe-tencent|probe-discord) exec /usr/libexec/mclash-probe "${1#probe-}" ;;
+ probe-telegram|probe-openai|probe-baidu|probe-google|probe-youtube|probe-github) exec /usr/libexec/mclash-probe "${1#probe-}" ;;
  check-update) exec /usr/libexec/mclash-update check ;;
  update-online) exec /usr/libexec/mclash-update online ;;
  update-local) exec /usr/libexec/mclash-update local ;;
@@ -195,7 +195,15 @@ case "$1" in
 	stop|enable|disable)
 		lock
 		"$INIT" "$1" || fail '服务操作失败'
-		if [ "$1" = stop ]; then /usr/libexec/mclash-network down || fail '接管清理失败，请查看日志'; fi
+		if [ "$1" = stop ]; then
+			/usr/libexec/mclash-network down || fail '接管清理失败，请查看日志'
+			stopped=0
+			for n in $(seq 1 20); do
+				if ! service_active; then stopped=1; break; fi
+				sleep 1
+			done
+			[ "$stopped" = 1 ] || fail '服务停止超时，请查看日志'
+		fi
 		printf '%s\n' '操作完成'
 		;;
 	*) fail '不支持的操作' ;;
