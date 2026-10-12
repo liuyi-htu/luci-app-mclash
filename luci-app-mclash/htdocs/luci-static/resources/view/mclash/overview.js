@@ -27,14 +27,23 @@ return view.extend({
 		return Promise.all([command('status'), command('read-config'), command('devices').catch(function() { return '{"devices":[]}'; })]);
 	},
 	render: function(data) {
-		var state, busy = false, buttons = [], apiQueue = Promise.resolve();
+		var state, busy = false, stopArmed = false, buttons = [], apiQueue = Promise.resolve();
 		var networkOptions, networkTiles = [];
 		try { networkOptions = overrides.call('summary', data[1]).network; } catch (_) {}
 		networkOptions = networkOptions || {mode: 'none', interfaces: ['br-lan'], lan: true, access: [], router: true, ipv6: false, stack: 'mixed'};
 		var running = E('strong'), version = E('strong');
 		var editor = {value: data[1]};
 		function previewText(text) {
-			return text.split('\n').filter(function(line) { return !/^# Mclash (?:链路设置:|节点链路(?::|\s))/.test(line); }).join('\n');
+			var namePrefix = '# Mclash OpenWrt 机场名称: ';
+			return text.split('\n').map(function(line) {
+				if (line.indexOf(namePrefix) !== 0) return line;
+				try {
+					var names = JSON.parse(line.slice(namePrefix.length));
+					if (Array.isArray(names)) return namePrefix + JSON.stringify(names.map(function(name, index) { return (index + 1) + '-' + name; }));
+					if (typeof names === 'string') return namePrefix + JSON.stringify('1-' + names);
+				} catch (_) {}
+				return line;
+			}).filter(function(line) { return !/^# Mclash (?:链路设置:|节点链路(?::|\s)|OpenWrt 机场(?:前缀|用量):)/.test(line); }).join('\n');
 		}
 		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [previewText(data[1])]);
 		var logs = E('pre', {'class': 'mclash-log'}, [_('点击“刷新日志”读取日志。')]);
@@ -42,7 +51,8 @@ return view.extend({
 		logKind.value = 'service';
 		function showStatus(raw) {
 			state = JSON.parse(raw);
-			running.textContent = state.installed ? (state.running ? _('● 运行中') : _('● 未运行')) : _('Mihomo 未安装');
+			if (!state.running) stopArmed = false;
+			running.textContent = state.installed ? (state.running ? (stopArmed ? _('● 再次点击停止') : _('● 运行中')) : _('● 未运行')) : _('Mihomo 未安装');
 			running.className = state.running ? 'mclash-ok' : 'mclash-bad';
 			if (proxyView) proxyView.refresh();
 			networkTiles.forEach(function(update) { update(); });
@@ -51,7 +61,7 @@ return view.extend({
 			var coreVersion = /(?:^|\s)v?(\d+\.\d+\.\d+(?:[-+][^\s]+)?)/.exec(state.version || '');
 			version.textContent = coreVersion ? 'v' + coreVersion[1] : (state.installed ? _('未知版本') : _('未安装'));
 			serviceButton.className = 'mclash-status-card';
-			serviceButton.setAttribute('title',state.running ? _('点击停止服务') : _('点击启动服务'));
+			serviceButton.setAttribute('title',state.running ? (stopArmed ? _('再次点击停止服务') : _('点击后再次确认停止')) : _('点击启动服务'));
 		}
 		function refresh() { return command('status').then(showStatus); }
 		function button(label, operation, style) {
@@ -73,7 +83,11 @@ return view.extend({
 			buttons.push(b);
 			return b;
 		}
-		var serviceButton = button(_('点击启停'), function() { return refresh().then(function() { return command(state.running ? 'stop' : 'start'); }); });
+		var serviceButton = button(_('点击启停'), function() { return refresh().then(function() {
+			if (!state.running) { stopArmed = false; return command('start'); }
+			if (!stopArmed) { stopArmed = true; return; }
+			stopArmed = false; return command('stop');
+		}); });
 		serviceButton.setAttribute('aria-label',_('点击启停'));
 		function refreshPreview() {
 			return command('read-config').then(function(text) { preview.textContent = previewText(text); });

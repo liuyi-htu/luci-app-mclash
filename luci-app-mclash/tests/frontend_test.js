@@ -131,7 +131,7 @@ async function main() {
   assert.ok(!nodes.some(n=>n.attrs.class==='mclash-note'),'static update hints are removed');
  }
  const nodes = [], notifications = [], calls = [];
- let actualRunning = false, rejectSave = false, networkArgs, controllerArgs, subscriptionArgs, modal, managerRunning, savedText = '# Mclash OpenWrt 机场名称: "旧机场"\n# Mclash OpenWrt 订阅链接: ["https://example.org/one","https://example.org/two"]\n# Mclash 链路设置: {}\n# Mclash 节点链路 1: {}\n# Mclash 节点链路: {}\n# other comment\nmixed-port: 7890\n';
+ let actualRunning = false, rejectSave = false, networkArgs, controllerArgs, subscriptionArgs, modal, managerRunning, savedText = '# Mclash OpenWrt 机场名称: ["旧机场","旧机场 2"]\n# Mclash OpenWrt 订阅链接: ["https://example.org/one","https://example.org/two"]\n# Mclash OpenWrt 机场前缀: ["1-","2-"]\n# Mclash OpenWrt 机场用量: [{"total":100},null]\n# Mclash 链路设置: {}\n# Mclash 节点链路 1: {}\n# Mclash 节点链路: {}\n# other comment\nmixed-port: 7890\n';
  function E(tag, attrs, children) {
   const node = {tag, attrs:attrs || {}, children:children || [], disabled:false, value:(attrs || {}).value || '', checked:false,style:{},
    addEventListener(type,fn) { (this.listeners || (this.listeners={}))[type]=fn; }, setAttribute(key,value) {this.attrs[key]=value;}, appendChild(child) {this.children.push(child);}};
@@ -181,7 +181,8 @@ async function main() {
  assert.ok(!nodes.some(n=>n.attrs.class==='mclash-capture-state'),'running card does not show capture mode');
  assert.ok(nodes.some(n=>n.tag==='style' && String(n.children).includes('.mclash-status-grid>.mclash-status-card{height:98px}')),'status cards use one fixed desktop height');
  const configPane=nodes.find(n=>n.attrs['data-tab']==='config'); assert.ok(configPane.children.includes(nodes.find(n=>n.tag==='pre')));
- assert.doesNotMatch(nodes.find(n=>n.tag==='pre').children[0],/链路设置|节点链路/);
+ assert.doesNotMatch(nodes.find(n=>n.tag==='pre').children[0],/链路设置|节点链路|机场前缀|机场用量/);
+ assert.match(nodes.find(n=>n.tag==='pre').children[0],/# Mclash OpenWrt 机场名称: \["1-旧机场","2-旧机场 2"\]/);
  assert.match(nodes.find(n=>n.tag==='pre').children[0],/# other comment\nmixed-port: 7890/);
  const originalText=savedText; savedText='# Mclash 链路设置: {}\n# Mclash 节点链路 2: {}\nfresh runtime config'; calls.length=0; configPane.listeners['cbi-tab-active']();
  await new Promise(resolve=>setImmediate(resolve)); assert.ok(calls.includes('read-config'));
@@ -286,7 +287,9 @@ async function main() {
  await click('清空日志'); assert.ok(calls.includes('clear-service-logs'));
  assert.ok(nodes.filter(n=>n.tag==='button' && n.children[0]!=='取消拉取').every(n=>!n.disabled));
  calls.length=0; actualRunning=false; await click('点击启停'); assert.ok(calls.includes('start'),'card starts the stopped service');
- calls.length=0; actualRunning=true; await click('点击启停'); assert.ok(calls.includes('stop'),'card stops the running service after a fresh status read');
+ calls.length=0; actualRunning=true; await click('点击启停'); assert.ok(!calls.includes('stop'),'first click only arms stop confirmation');
+ assert.equal(nodes.find(n=>n.attrs['aria-label']==='点击启停').attrs.title,'再次点击停止服务');
+ await click('点击启停'); assert.equal(calls.filter(c=>c==='stop').length,1,'second click stops the running service');
  console.log('Frontend checks passed: stale status, subscription, selected LAN devices and service protection');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
