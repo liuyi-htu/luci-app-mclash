@@ -18,7 +18,17 @@ Object? _plainSubscriptionValue(Object? value) {
 }
 
 /// Resolves names in source order and retains dialer references within a source.
-List<String> subscriptionSources(String content, int count) {
+List<String> _sourcePrefixes(int count, List<String>? prefixes) {
+  final values = prefixes ?? List.generate(count, (i) => count == 1 ? '' : '${i + 1}-');
+  if (values.length != count || values.toSet().length != count ||
+      values.any((p) => p.isNotEmpty && !RegExp(r'^[1-9]\d*-$').hasMatch(p))) {
+    throw const FormatException('机场编号无效');
+  }
+  return values;
+}
+
+List<String> subscriptionSources(String content, int count, {List<String>? prefixes}) {
+  final tags = _sourcePrefixes(count, prefixes);
   if (count < 1) return [];
   final config = loadYaml(content) as Map;
   final manual = readManualNodeNames(content).toSet();
@@ -27,27 +37,27 @@ List<String> subscriptionSources(String content, int count) {
     final node = Map<String, dynamic>.from(_plainSubscriptionValue(value) as Map);
     final name = node['name'] as String;
     if (manual.contains(name)) continue;
-    var index = 0;
-    if (count > 1) {
-      final match = RegExp(r'^(\d+)-').firstMatch(name);
-      if (match == null) throw const FormatException('无法识别机场节点归属，请先更新全部机场');
-      index = int.parse(match.group(1)!) - 1;
-      if (index < 0 || index >= count) throw const FormatException('机场节点归属无效');
-      final prefix = '${index + 1}-';
-      node['name'] = name.substring(prefix.length);
-      final upstream = node['dialer-proxy'];
-      if (upstream is String && upstream.startsWith(prefix)) {
-        node['dialer-proxy'] = upstream.substring(prefix.length);
-      }
+    var index = tags.indexWhere((tag) => tag.isNotEmpty && name.startsWith(tag));
+    if (index < 0) index = tags.indexOf('');
+    if (index < 0) throw const FormatException('无法识别机场节点归属，请先更新全部机场');
+    final prefix = tags[index];
+    node['name'] = name.substring(prefix.length);
+    final upstream = node['dialer-proxy'];
+    if (prefix.isNotEmpty && upstream is String && upstream.startsWith(prefix)) {
+      node['dialer-proxy'] = upstream.substring(prefix.length);
     }
     batches[index].add(node);
   }
   return batches.map((nodes) => (YamlEditor('')..update([], {'proxies': nodes})).toString()).toList();
 }
 
-String mergeSubscriptionSources(List<String> sources) {
-  if (sources.isEmpty) throw const FormatException('请输入订阅链接');
-  if (sources.length == 1) return sources.single;
+String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) {
+  final tags = _sourcePrefixes(sources.length, prefixes);
+  if (sources.isEmpty) {
+    if (prefixes != null) return 'proxies: []\n';
+    throw const FormatException('请输入订阅链接');
+  }
+  if (sources.length == 1 && tags.single.isEmpty) return sources.single;
   final batches = <List<Map<String, dynamic>>>[];
   for (var i = 0; i < sources.length; i++) {
     final source = loadYaml(sources[i]);
@@ -75,7 +85,7 @@ String mergeSubscriptionSources(List<String> sources) {
   for (var i = 0; i < batches.length; i++) {
     final renamed = {
       for (final node in batches[i])
-        node['name'] as String: '${i + 1}-${node['name']}'
+        node['name'] as String: '${tags[i]}${node['name']}'
     };
     for (final node in batches[i]) {
       node['name'] = renamed[node['name']];
@@ -91,10 +101,10 @@ String mergeSubscriptionSources(List<String> sources) {
 
 /// Refreshes nodes while retaining user routing and proxy groups.
 String buildSubscriptionConfig(String template, String subscription,
-    {String? previousConfig}) {
+    {String? previousConfig, bool allowEmpty = false}) {
   final source = loadYaml(subscription);
   final downloaded = source is YamlMap ? source['proxies'] : null;
-  if (downloaded is! YamlList || downloaded.isEmpty) {
+  if (downloaded is! YamlList || (downloaded.isEmpty && !allowEmpty)) {
     throw const FormatException(
       '订阅没有可内置的 proxies 节点，请使用包含节点的 Mihomo 订阅',
     );

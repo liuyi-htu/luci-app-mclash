@@ -42,7 +42,7 @@ exit 1
             '/etc/init.d/mclash': str(init),
             '/etc/mclash/config.upload.yaml': str(self.upload),
             '/etc/mclash/config.yaml': str(self.config),
-            '/etc/mclash/subscription.url': str(self.base/'url'), '/tmp/mclash-subscription.XXXXXX': str(self.base/'fetch.XXXXXX'), '/etc/mclash/api.request.json': str(self.base/'request'), '/usr/bin/curl': str(self.base/'curl'), '/var/lock/mclash-ui.lock': str(self.lock), '/var/log': str(self.base / 'logs'),
+            '/etc/mclash/subscription.url': str(self.base/'url'), '/tmp/mclash-subscription.XXXXXX': str(self.base/'fetch.XXXXXX'), '/tmp/mclash-subscription-headers.XXXXXX': str(self.base/'headers.XXXXXX'), '/etc/mclash/api.request.json': str(self.base/'request'), '/usr/bin/curl': str(self.base/'curl'), '/var/lock/mclash-ui.lock': str(self.lock), '/var/log': str(self.base / 'logs'),
             '/usr/libexec/mclash-log': str(self.base / 'log-helper'),
             '/etc/mclash/.config.XXXXXX': str(self.base/'.config.XXXXXX'),
             'mkdir -p /var/lock': ':',
@@ -59,6 +59,22 @@ exit 1
     def run_command(self, action):
         return subprocess.run(['busybox', 'ash', str(self.script), action],
                               capture_output=True, text=True)
+
+    def test_subscription_usage_uses_final_headers_and_cleans_up(self):
+        (self.base/'url').write_text('https://example.org/subscription')
+        (self.base/'curl').write_text("""#!/bin/sh
+while [ "$#" -gt 0 ]; do
+ case "$1" in --dump-header) shift; headers="$1" ;; --output) shift; output="$1" ;; esac
+ shift
+done
+printf 'HTTP/1.1 302 Found\\r\\nsubscription-userinfo: total=999\\r\\n\\r\\nHTTP/1.1 200 OK\\r\\nSubscription-Userinfo: upload=10; download=20; total=100; expire=1893456000\\r\\n\\r\\n' > "$headers"
+printf 'proxies: []\\n' > "$output"
+""")
+        result = self.run_command('fetch-subscription')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '# Mclash 订阅用量: upload=10; download=20; total=100; expire=1893456000\nproxies: []\n')
+        self.assertFalse(list(self.base.glob('headers.*')))
+        self.assertFalse(list(self.base.glob('fetch.*')))
 
     def test_invalid_save_keeps_existing_config(self):
         self.upload.write_text('invalid profile with secret\n')

@@ -143,11 +143,11 @@ async function main() {
   exec:async (path,args) => {
    assert.equal(path,'/usr/libexec/mclash-ui'); calls.push(args[0]);
    if (args[0]==='status') return {code:0,stdout:JSON.stringify({installed:true,running:actualRunning,enabled:false,version:'test'})};
-   if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip:'203.0.113.1',region:'测试地区',latency:125})};
+   if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip_supported:true,ip:'203.0.113.1',country:'US',region:'测试地区',latency:125})};
    if (args[0]==='devices') return {code:0,stdout:'{"devices":["br-lan","br-guest"]}'};
    if (args[0]==='save' && rejectSave) return {code:1,stderr:'配置校验失败'};
    if (args[0]==='read-config') return {code:0,stdout:savedText};
-   if (args[0]==='fetch-subscription') return {code:0,stdout:'proxies: []\nrules: [MATCH,DIRECT]\n'};
+   if (args[0]==='fetch-subscription') return {code:0,stdout:'# Mclash 订阅用量: upload=10; download=20; total=100; expire=1893456000\nproxies: []\nrules: [MATCH,DIRECT]\n'};
    return {code:0,stdout:'<script>secret</script>'};
   },
   write:async (path,text,mode) => {
@@ -158,7 +158,7 @@ async function main() {
  };
  const ui = {addNotification:(_title,element,type)=>notifications.push({element,type}),showModal:(title,children)=>{modal={title,children};},hideModal:()=>{modal=null;},
   tabs:{initTabGroup(panes) {assert.deepEqual(panes.map(n=>n.attrs['data-tab-title']),['基础设置','节点与规则','运行配置','日志','更新内核']);}}};
- const override = {call:(action,text,args)=>{if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return ['retained airport A','retained airport B']; if(action==='subscription') {subscriptionArgs=args;return text;}
+ const override = {call:(action,text,args)=>{if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return Array.from({length:args.count},(_,i)=>'retained airport '+String.fromCharCode(65+i)); if(action==='subscription') {subscriptionArgs=args;return text;}
   return {controller:'0.0.0.0:9097',groups:[]};}};
  const app = new Function('view','fs','ui','E','_','management','proxy','overrides','template','update','notice','L','probe',source)(
   {extend:x=>x},file,ui,E,x=>x,{render:(_content,_save,getRunning)=>{managerRunning=getRunning;return {element:E('div'),refresh() {}};}},
@@ -169,12 +169,14 @@ async function main() {
   const node=nodes.filter(n=>n.tag==='button' && (n.attrs['aria-label']===label || n.children[0]===label)).at(-1);
   assert.ok(node,label+' must exist'); await node.attrs.click({currentTarget:node});
  };
- for (const label of ['Telegram 连接','OpenAI 连接','百度连接','谷歌连接','GitHub 连接','YouTube 连接']) {
+ for (const label of ['Claude 连接','OpenAI 连接','阿里连接','腾讯连接','Cloudflare 连接','Discord 连接']) {
   await click(label);
   const card=nodes.find(n=>n.attrs['aria-label']===label);
   const value=card.children[1].children[1];
-  assert.equal(value.children.length,3);
+  assert.equal(value.children.length,4);
   assert.equal(value.children[1].children[1],'203.0.113.1');
+  assert.equal(value.children[2].children[1],'国家：美国');
+  assert.equal(value.children[3].children[1],'地区：测试地区');
   assert.equal(value.children[0].children[1],'125 ms');
   assert.equal(card.disabled,false);
  }
@@ -197,7 +199,7 @@ async function main() {
  assert.ok(!text(captureSection).includes('检测来源：'),'capture selector is removed');
  const statusGrid=nodes.find(n=>n.attrs.class==='mclash-status-grid');
  assert.equal(statusGrid.children.at(-1),probeSource);
- assert.equal(statusGrid.children[3].attrs['aria-label'],'OpenAI 连接');
+ assert.deepEqual(statusGrid.children.slice(2,8).map(n=>n.attrs['aria-label']),['Claude 连接','OpenAI 连接','阿里连接','腾讯连接','Cloudflare 连接','Discord 连接']);
  await click('检测来源'); assert.equal(probeSource.value,'router');
  probeSource.disabled=true; await click('检测来源'); assert.equal(probeSource.value,'router');
  probeSource.disabled=false; await click('检测来源'); assert.equal(probeSource.value,'browser');
@@ -236,28 +238,30 @@ async function main() {
  assert.equal(modal.title,'机场订阅');
  function modalNodes(n) { return n && typeof n==='object' ? [n,...(n.children||[]).flatMap(modalNodes)] : []; }
  function airportInputs(label) { return modal.children.flatMap(modalNodes).filter(n=>n.tag==='input'&&n.attrs['aria-label']===label); }
- assert.deepEqual(airportInputs('机场名称').map(n=>n.value),['旧机场','旧机场 2']);
- assert.deepEqual(airportInputs('订阅链接').map(n=>n.value),['https://example.org/one','https://example.org/two']);
- await click('添加机场');assert.equal(airportInputs('机场名称').length,3);
- await click('删除机场');assert.equal(airportInputs('机场名称').length,2);
- const airportNames=airportInputs('机场名称'),airportUrls=airportInputs('订阅链接');
- airportNames[0].value='机场 A';airportNames[1].value='机场 B';
- airportUrls[0].value='https://example.org/profile';airportUrls[1].value='https://example.org/second';
- airportNames[1].value=''; calls.length=0;await click('更新全部机场');assert.ok(!calls.includes('fetch-subscription'));
- airportNames[1].value='机场 A'; calls.length=0;await click('更新全部机场');assert.ok(!calls.includes('fetch-subscription'));
- airportNames[1].value='机场 B';
- calls.length=0; await click('更新全部机场');
- assert.equal(calls.filter(c=>c==='fetch-subscription').length,2); assert.ok(calls.includes('save'),'stale running state does not prevent adding subscription');
- assert.ok(savedText.indexOf('# Mclash OpenWrt 机场名称:') < savedText.indexOf('# Mclash OpenWrt 订阅链接:'));
+ function airportRows() { return modal.children.flatMap(modalNodes).filter(n=>n.attrs.class==='mclash-actions mclash-subscription-row'); }
+ async function airportClick(index,label) { const n=modalNodes(airportRows()[index]).find(n=>n.tag==='button'&&n.children[0]===label);await n.attrs.click({currentTarget:n}); }
+ assert.deepEqual(airportRows().map(n=>n.children[0].children[0]),['1-旧机场','2-旧机场 2']);
+ assert.ok(text(airportRows()[0]).includes('剩余流量：未知'));
+ assert.deepEqual(airportRows()[0].children.filter(n=>n.tag==='button').map(n=>n.children[0]),['编辑','↓','更新','删除']);
+ await airportClick(0,'编辑');
+ assert.deepEqual(modal.children.flatMap(modalNodes).filter(n=>n.tag==='button').map(n=>n.children[0]),['取消','保存']);
+ const airportName=airportInputs('机场名称')[0],airportUrl=airportInputs('订阅链接')[0];
+ airportName.value='';calls.length=0;await click('保存');assert.ok(!calls.includes('fetch-subscription'));
+ airportName.value='旧机场 2';await click('保存');assert.ok(!calls.includes('write'));
+ airportName.value='机场 A';calls.length=0;await click('保存');assert.ok(!calls.includes('fetch-subscription'),'renaming does not fetch');
+ await airportClick(1,'编辑');airportInputs('机场名称')[0].value='机场 B';airportInputs('订阅链接')[0].value='https://example.org/second';
+ calls.length=0;await click('保存');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);
  assert.match(savedText,/# Mclash OpenWrt 机场名称: \["机场 A","机场 B"\]/);
- await click('管理订阅');
- assert.deepEqual(airportInputs('机场名称').map(n=>n.value),['机场 A','机场 B']);
- assert.deepEqual(airportInputs('订阅链接').map(n=>n.value),['https://example.org/profile','https://example.org/second']);
- const updateFirst=modal.children.flatMap(modalNodes).find(n=>n.tag==='button'&&n.children[0]==='更新');
- calls.length=0;await updateFirst.attrs.click({currentTarget:updateFirst});
- assert.equal(calls.filter(c=>c==='fetch-subscription').length,1,'individual update fetches just one airport');
- assert.equal(subscriptionArgs.sources[1],'retained airport B','other airport nodes come from current config');
- assert.match(savedText,/# Mclash OpenWrt 机场名称: \["机场 A","机场 B"\]/);
+ calls.length=0;await airportClick(0,'更新');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);
+ assert.equal(subscriptionArgs.sources[1],'retained airport B');
+ assert.ok(text(airportRows()[0]).includes('剩余流量：70 B'));
+ calls.length=0;await airportClick(0,'↓');assert.ok(!calls.includes('fetch-subscription'),'reordering must not fetch');
+ assert.deepEqual(subscriptionArgs.prefixes,['2-','1-']);
+ assert.deepEqual(airportRows().map(n=>n.children[0].children[0]),['1-机场 B','2-机场 A']);
+ assert.equal(subscriptionArgs.sources[0],'retained airport B');
+ await airportClick(0,'删除');assert.equal(airportRows().length,1);assert.deepEqual(subscriptionArgs.prefixes,['1-']);
+ await click('新增机场');airportInputs('机场名称')[0].value='机场 C';airportInputs('订阅链接')[0].value='https://example.org/third';
+ calls.length=0;await click('保存');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);assert.equal(airportRows().length,2);
  await click('监听地址与端口');
  const endpoint=nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']==='监听地址与端口').at(-1);
  endpoint.value='127.0.0.1:9091'; await click('保存');
@@ -274,7 +278,7 @@ async function main() {
  actualRunning=true; await nodes.find(n=>n.attrs['data-tab']==='settings').listeners['cbi-tab-active']();
  assert.ok(text(routerTile()).includes('已启用')); assert.ok(!routerTile().className.includes('mclash-inactive'),'running TProxy restores effective state');
  assert.ok(!nodes.some(n=>n.tag==='button' && n.attrs['aria-label']==='TUN 协议栈'),'stack belongs inside capture dialog');
- await click('管理订阅'); calls.length=0; await click('更新全部机场');
+ calls.length=0; await click('管理订阅');
  assert.ok(!calls.includes('fetch-subscription')); assert.equal(notifications.at(-1).type,'error','actual running service still protects profile');
  assert.ok(nodes.filter(n=>n.mclashConfig).every(n=>n.disabled),'running locks all general configuration tiles');
  assert.ok(!nodes.find(n=>n.tag==='button' && n.attrs['aria-label']==='点击启停').disabled,'stop remains usable');

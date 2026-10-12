@@ -39,14 +39,14 @@ return baseclass.extend({
 			return E('select', {'class': 'cbi-input-select'}, values.map(function(v) { return E('option', {'value': v, 'selected': v === value ? '' : null}, [v]); }));
 		}
 		function modal(title, fields, save) {
-			ui.showModal(title, [E('div', {'style': 'max-height:65vh;overflow:auto'}, fields), E('div', {'class': 'right'}, [
+			ui.showModal(title, [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, fields), E('div', {'class': 'right'}, [
 				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
 				action(_('保存'), function() { return save().then(function() { ui.hideModal(); }); }, 'cbi-button-save')
 			])]);
 		}
-		function listRows(items, edit, remove, reorder) {
+		function listRows(items, edit, remove, reorder, label) {
 			return E('div', {}, items.map(function(name, index) {
-				return E('div', {'class': 'mclash-actions'}, [E('strong', {'style': 'flex:1;overflow-wrap:anywhere'}, [name]),
+				return E('div', {'class': 'mclash-actions'}, [E('strong', {'style': 'flex:1;overflow-wrap:anywhere'}, [label ? label(name) : name]),
 					edit ? action(_('编辑'), function() { return edit(name); }) : '',
 					reorder && index > 0 ? action('↑', function() { var order = items.slice(); order[index] = order[index - 1]; order[index - 1] = name; return reorder(order).then(ui.hideModal); }) : '',
 					reorder && index < items.length - 1 ? action('↓', function() { var order = items.slice(); order[index] = order[index + 1]; order[index + 1] = name; return reorder(order).then(ui.hideModal); }) : '',
@@ -103,7 +103,7 @@ return baseclass.extend({
 		}
 		function openChains() {
 			var s = summary();
-			ui.showModal(_('链式节点'), [listRows(Object.keys(s.chains), editChain, function(id) { return change('chain', {id: id, selected: [], targets: [], prepend: !s.chains[id].back}); }),
+			ui.showModal(_('链式节点'), [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, [listRows(Object.keys(s.chains), editChain, function(id) { return change('chain', {id: id, selected: [], targets: [], prepend: !s.chains[id].back}); })]),
 				E('div', {'class': 'mclash-actions'}, [action(_('新增链路'), function() { editChain(s.nextChainId); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
 		function editGroup(oldName) {
@@ -112,8 +112,16 @@ return baseclass.extend({
 			var filter = input(s.filters[oldName] || '', _('留空匹配全部节点'));
 			var direct = E('input', {'type': 'checkbox', 'checked': (s.direct[oldName] != null ? s.direct[oldName] : (group.proxies || []).indexOf('DIRECT') >= 0 || oldName === '🚀 国内') ? '' : null});
 			var url = input(group.url || ''), interval = input(group.interval == null ? '' : String(group.interval));
+			function fillTestDefaults() {
+				if (type.value !== 'select') {
+					if (!url.value.trim()) url.value = 'https://www.gstatic.com/generate_204';
+					if (!interval.value.trim()) interval.value = '300';
+				}
+			}
+			type.addEventListener('change', fillTestDefaults); fillTestDefaults();
 			if (oldName === '🚀 国内' || oldName === '🌍 国外') name.disabled = true;
 			modal(_('代理组'), [field(_('名称'), name), field(_('类型'), type), field(_('节点匹配正则'), filter), field(_('包含 DIRECT'), direct), field(_('测速地址'), url), field(_('测速间隔（秒）'), interval)], function() {
+				fillTestDefaults();
 				var next = Object.assign({}, group, {name: name.value.trim(), type: type.value});
 				if (url.value.trim()) next.url = url.value.trim(); else delete next.url;
 				if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('间隔须为非负整数')); next.interval = n; } else delete next.interval;
@@ -150,11 +158,21 @@ return baseclass.extend({
 			ui.showModal(_('规则集管理'), [listRows(Object.keys(summary().providers), editProvider, function(name) { return change('deleteProvider', {name: name}); }),
 				E('div', {'class': 'mclash-actions'}, [action(_('新增规则集'), function() { editProvider(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
-		function openRules() {
-			var s = summary(), rules = area(s.rules.join('\n'), 16);
-			modal(_('规则管理'), [field(_('规则（每行一条，按顺序匹配）'), rules), E('p', {}, [_('可用策略：') + s.policies.join('、')])], function() {
-				return change('rules', {rules: rules.value.split(/\r?\n/).map(function(line) { return line.trim(); }).filter(Boolean)});
+		function editRule(index) {
+			var rules = summary().rules.slice(), rule = input(index == null ? '' : rules[index]);
+			modal(_('规则'), [field(_('规则'), rule), E('p', {}, [_('可用策略：') + summary().policies.join('、')])], function() {
+				var value = rule.value.trim();
+				if (!value || /[\r\n]/.test(value)) throw new Error(_('请填写一条规则'));
+				if (index == null) rules.push(value); else rules[index] = value;
+				return change('rules', {rules: rules});
 			});
+		}
+		function openRules() {
+			var rules = summary().rules, indices = rules.map(function(rule, index) { return String(index); });
+			ui.showModal(_('规则管理'), [listRows(indices, function(index) { editRule(Number(index)); }, function(index) {
+				return change('rules', {rules: rules.filter(function(rule, i) { return i !== Number(index); })});
+			}, function(order) { return change('rules', {rules: order.map(function(index) { return rules[Number(index)]; })}); }, function(index) { return (Number(index) + 1) + '-' + rules[Number(index)]; }),
+				E('div', {'class': 'mclash-actions'}, [action(_('新增规则'), function() { editRule(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
 		var actions = {
 			addNode: [_('添加节点'), openNodes], host: [_('修改 Host'), openHost], prependProxy: [_('链式节点'), openChains],

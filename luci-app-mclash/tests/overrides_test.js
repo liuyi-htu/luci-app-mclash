@@ -180,3 +180,14 @@ assert.ok(api.call('summary', refreshedAirports).manualNodes.includes('manual-ai
 const singleAirport = api.call('subscription', base, {template: base, sources: [airportOne], refresh: true});
 assert.match(api.call('subscriptionSources', singleAirport, {count: 1})[0], /name: edge/);
 console.log('Independent airport refresh preserves peer and manual nodes');
+
+const stablePrefixes = ['2-', '1-'];
+const reorderedAirports = api.call('subscription', airports, {template: base, sources: [retained[1],retained[0]], prefixes:stablePrefixes, refresh:true});
+assert.deepEqual(api.call('subscriptionSources', reorderedAirports, {count:2,prefixes:stablePrefixes}), [retained[1],retained[0]]);
+assert.ok(api.call('summary',reorderedAirports).nodes.includes('1-edge'));
+const onlySecond = api.call('subscription', airports, {template: base, sources:[retained[1]],prefixes:['2-'],refresh:true});
+assert.ok(api.call('summary',onlySecond).nodes.includes('2-edge'));
+assert.match(api.call('subscriptionSources', onlySecond, {count:1,prefixes:['2-']})[0],/server: two.example/);
+const allRemoved = api.call('subscription', onlySecond, {template:base,sources:[],prefixes:[],allowEmpty:true,refresh:true});
+assert.deepEqual(api.call('summary',allRemoved).nodes,['manual-airport']);
+console.log('Airport ordering and deletion keep stable node identities');

@@ -126,89 +126,94 @@ return view.extend({
 			try { return line ? JSON.parse(line.slice(prefix.length)) : fallback; } catch (_) { return fallback; }
 		}
 		function subscriptionDialog() {
-			var prefix = '# Mclash OpenWrt 订阅链接: ';
-			var namePrefix = '# Mclash OpenWrt 机场名称: ';
-			var savedNames = metadata(namePrefix, ''), savedLinks = metadata(prefix, []);
-			if (!Array.isArray(savedLinks)) savedLinks = [];
-			var airports = [], nextName = 1, airportList = E('div');
-			function renderAirports() {
-				airportList.textContent = '';
-				airports.forEach(function(airport) {
-					airportList.appendChild(E('div', {'class': 'mclash-modal-field'}, [
-						E('label', {}, [_('机场名称')]), airport.name,
-						E('label', {}, [_('订阅链接')]), airport.url,
-						button(_('更新'), function() { return updateAirports(airport); }, 'cbi-button-save'),
-						E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': function() {
-							if (pulling) return;
-							airports.splice(airports.indexOf(airport), 1); renderAirports();
-						}}, [_('删除机场')])
-					]));
-				});
-			}
-			function addAirport(name, url, sourceIndex) {
-				var defaultName = _('机场 ') + nextName++;
-				airports.push({
-					sourceIndex: sourceIndex,
-					name: E('input', {'class': 'cbi-input-text', 'aria-label': _('机场名称'), 'value': name || defaultName}),
-					url: E('input', {'class': 'cbi-input-text', 'aria-label': _('订阅链接'), 'value': url || '', 'placeholder': 'https://…'})
-				});
-				renderAirports();
-			}
-			savedLinks.forEach(function(link, index) {
-				var name = Array.isArray(savedNames) ? savedNames[index] : (savedNames ? savedNames + (index ? ' ' + (index + 1) : '') : '');
-				addAirport(name, link, index);
-			});
-			nextName = airports.length + 1;
-			if (!airports.length) addAirport('', '');
+			var urlPrefix = '# Mclash OpenWrt 订阅链接: ', namePrefix = '# Mclash OpenWrt 机场名称: ';
+			var tagPrefix = '# Mclash OpenWrt 机场前缀: ', usagePrefix = '# Mclash OpenWrt 机场用量: ';
+			var links = metadata(urlPrefix, []), names = metadata(namePrefix, ''), tags = metadata(tagPrefix, []), usage = metadata(usagePrefix, []);
+			if (!Array.isArray(links)) links = [];
+			var entries = links.map(function(url, index) { return {
+				name: Array.isArray(names) ? names[index] || _('机场 ') + (index + 1) : (names ? names + (index ? ' ' + (index + 1) : '') : _('机场 ') + (index + 1)),
+				url: url, prefix: tags.length === links.length ? tags[index] : (links.length === 1 ? '' : (index + 1) + '-'), usage: usage[index] || null
+			}; });
 			var pulling = false, cancelled = false;
-			var cancelPull = E('button',{'class':'btn mclash-button','disabled':true,'click':function() {
-				if (!pulling) return; cancelled = true; cancelPull.disabled = true;
-				return command('cancel-fetch').then(function(message) { notice.show(message,'info'); }).catch(function(err) { notice.show(err.message,'error'); });
-			}},[_('取消拉取')]);
-			function updateAirports(target) {
-				pulling = true; cancelled = false; cancelPull.disabled = false;
-				return requireStopped().then(function() {
-					var entries = airports.map(function(airport) { return {name: airport.name.value.trim(), url: airport.url.value.trim(), sourceIndex: airport.sourceIndex}; });
-					if (!entries.length) throw new Error(_('请添加机场'));
-					entries.forEach(function(airport) {
-						if (!airport.name) throw new Error(_('请填写每个机场的名称'));
-						if (!airport.url) throw new Error(_('请填写每个机场的订阅链接'));
-						var url = new URL(airport.url); if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(_('订阅链接须为 HTTP 或 HTTPS'));
-					});
-					var names = entries.map(function(airport) { return airport.name; }), links = entries.map(function(airport) { return airport.url; });
-					if (new Set(names).size !== names.length) throw new Error(_('机场名称不能重复'));
-					if (new Set(links).size !== links.length) throw new Error(_('订阅链接不能重复'));
-					var sources = [], fetching = Promise.resolve(), selectedIndex = airports.indexOf(target);
-					if (target) {
-						var retained = overrides.call('subscriptionSources', editor.value, {count: savedLinks.length});
-						sources = entries.map(function(entry, index) {
-							if (index === selectedIndex) return '';
-							if (!retained[entry.sourceIndex] || entry.url !== savedLinks[entry.sourceIndex]) throw new Error(_('其他机场有未保存的链接，请先更新全部机场'));
-							return retained[entry.sourceIndex];
-						});
-					}
-					links.forEach(function(link, index) {
-						if (target && index !== selectedIndex) return;
-						fetching = fetching.then(function() { if (cancelled) throw new Error(_('订阅拉取已取消')); return fs.write('/etc/mclash/subscription.url', link, 384); })
-							.then(function() { return command('fetch-subscription'); }).then(function(content) { sources[index] = content; });
-					});
-					return fetching.then(function() {
-						if (cancelled) throw new Error(_('订阅拉取已取消'));
-						pulling = false; cancelPull.disabled = true;
-						var previous = editor.value;
-						var generated = overrides.call('subscription', previous, {template: template.text, sources: sources, refresh: overrides.call('summary', previous).groups.length > 0});
-						generated = generated.split('\n').filter(function(line) { return line.indexOf(prefix) !== 0 && line.indexOf(namePrefix) !== 0; }).join('\n');
-						return persist(namePrefix + JSON.stringify(names) + '\n' + prefix + JSON.stringify(links) + '\n' + generated);
-					}).then(function(message) { ui.hideModal(); return message; });
-				}).finally(function() { pulling = false; cancelPull.disabled = true; });
+			function retainedSources() { return overrides.call('subscriptionSources', editor.value, {count: entries.length, prefixes: entries.map(function(e) { return e.prefix; })}); }
+			function saveAirports(next, sources) {
+				var content = sources ? overrides.call('subscription', editor.value, {template: template.text, sources: sources, prefixes: next.map(function(e) { return e.prefix; }), refresh: overrides.call('summary', editor.value).groups.length > 0, allowEmpty: !next.length}) : editor.value;
+				content = content.split('\n').filter(function(line) { return ![urlPrefix, namePrefix, tagPrefix, usagePrefix].some(function(prefix) { return line.indexOf(prefix) === 0; }); }).join('\n');
+				return persist(namePrefix + JSON.stringify(next.map(function(e) { return e.name; })) + '\n' + urlPrefix + JSON.stringify(next.map(function(e) { return e.url; })) + '\n' + tagPrefix + JSON.stringify(next.map(function(e) { return e.prefix; })) + '\n' + usagePrefix + JSON.stringify(next.map(function(e) { return e.usage; })) + '\n' + content).then(function() { subscriptionDialog(); });
 			}
-			ui.showModal(_('机场订阅'), [
-				airportList,
-				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': function() { if (!pulling) addAirport('', ''); }}, [_('添加机场')]),
-				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
-					cancelPull,' ',button(_('更新全部机场'), function() { return updateAirports(null); }, 'cbi-button-save')
-				])
-			]);
+			function readUsage(content) {
+				var line = content.split('\n').find(function(line) { return line.indexOf('# Mclash 订阅用量: ') === 0; });
+				if (!line) return null;
+				var data = {};
+				line.slice('# Mclash 订阅用量: '.length).split(';').forEach(function(field) {
+					var match = /^\s*(upload|download|total|expire)\s*=\s*(\d+)\s*$/.exec(field);
+					if (match && Number.isSafeInteger(Number(match[2]))) data[match[1]] = Number(match[2]);
+				});
+				return data;
+			}
+			function fetchAirport(entry) {
+				if (cancelled) return Promise.reject(new Error(_('订阅拉取已取消')));
+				return fs.write('/etc/mclash/subscription.url', entry.url, 384).then(function() { return command('fetch-subscription'); }).then(function(content) {
+					entry.usage = readUsage(content); return content;
+				});
+			}
+			function updateAirport(index) {
+				if (pulling) return Promise.resolve();
+				pulling = true; cancelled = false;
+				return requireStopped().then(function() {
+					var next = entries.map(function(e) { return Object.assign({}, e); }), sources = retainedSources();
+					return fetchAirport(next[index]).then(function(content) { sources[index] = content; if (cancelled) throw new Error(_('订阅拉取已取消')); return saveAirports(next, sources); });
+				}).finally(function() { pulling = false; });
+			}
+			function editAirport(index) {
+				var entry = index == null ? {name: _('机场 ') + (entries.length + 1), url: '', usage: null} : entries[index];
+				var name = E('input', {'class': 'cbi-input-text', 'aria-label': _('机场名称'), 'value': entry.name});
+				var url = E('input', {'class': 'cbi-input-text', 'aria-label': _('订阅链接'), 'value': entry.url, 'placeholder': 'https://…'});
+				ui.showModal(_('编辑机场'), [E('div', {'class': 'mclash-modal-field'}, [E('label', {}, [_('机场名称')]), name, E('label', {}, [_('订阅链接')]), url]),
+					E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ', button(_('保存'), function() {
+						if (pulling) return Promise.resolve();
+						var updated = Object.assign({}, entry, {name: name.value.trim(), url: url.value.trim()}), next = entries.slice();
+						if (!updated.name || !updated.url) throw new Error(_('请填写机场名称和订阅链接'));
+						var parsed = new URL(updated.url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(_('订阅链接须为 HTTP 或 HTTPS'));
+						if (entries.some(function(e, i) { return i !== index && (e.name === updated.name || e.url === updated.url); })) throw new Error(_('机场名称和订阅链接不能重复'));
+						if (index == null) {
+							var max = entries.reduce(function(value, e) { return Math.max(value, parseInt(e.prefix, 10) || 1); }, 0);
+							updated.prefix = entries.length ? (max + 1) + '-' : ''; next.push(updated);
+						} else next[index] = updated;
+						if (index != null && entry.url === updated.url) return saveAirports(next);
+						pulling = true; cancelled = false;
+						return requireStopped().then(function() { var sources = retainedSources(); return fetchAirport(updated).then(function(content) {
+							sources[index == null ? entries.length : index] = content;
+							if (cancelled) throw new Error(_('订阅拉取已取消')); return saveAirports(next, sources);
+						}); }).finally(function() { pulling = false; });
+					}, 'cbi-button-save')])]);
+			}
+			function moveAirport(index, offset) {
+				var next = entries.slice(), sources = retainedSources(), to = index + offset;
+				[next[index], next[to]] = [next[to], next[index]]; [sources[index], sources[to]] = [sources[to], sources[index]];
+				return saveAirports(next, sources);
+			}
+			function bytes(value) {
+				var units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'], unit = 0;
+				while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+				return value.toFixed(unit ? 2 : 0) + ' ' + units[unit];
+			}
+			function usageText(entry) {
+				var u = entry.usage || {}, remain = [u.total, u.upload, u.download].every(Number.isFinite) ? bytes(Math.max(0, u.total - u.upload - u.download)) : _('未知');
+				var expires = u.expire === 0 ? _('不限') : (Number.isFinite(u.expire) ? new Date(u.expire * 1000).toLocaleDateString() : _('未知'));
+				return _('剩余流量：') + remain + ' · ' + _('到期时间：') + expires;
+			}
+			var rows = entries.map(function(entry, index) { return E('div', {'class': 'mclash-actions mclash-subscription-row'}, [
+				E('strong', {'class': 'mclash-subscription-name'}, [(index + 1) + '-' + entry.name]), E('span', {'class': 'mclash-subscription-usage'}, [usageText(entry)]),
+				button(_('编辑'), function() { editAirport(index); }),
+				index ? button('↑', function() { return moveAirport(index, -1); }) : '',
+				index < entries.length - 1 ? button('↓', function() { return moveAirport(index, 1); }) : '',
+				button(_('更新'), function() { return updateAirport(index); }, 'cbi-button-save'),
+				button(_('删除'), function() { var next = entries.slice(), sources = retainedSources(); next.splice(index, 1); sources.splice(index, 1); return saveAirports(next, sources); }, 'cbi-button-negative')
+			]); });
+			ui.showModal(_('机场订阅'), [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, rows), E('div', {'class': 'mclash-actions'}, [
+				button(_('新增机场'), function() { editAirport(null); }),
+				E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
 		var manager = management.render(function() { return editor.value; }, persist, function() { return refresh().then(function() { return state.running; }); });
 		var proxyView = proxy.render(function() { return overrides.call('summary', editor.value); }, function() { return state.running; });
@@ -236,6 +241,16 @@ return view.extend({
 		function probeIcon(kind) {
 			return E('img',{'src':L.resource('mclash/icons/'+kind+'.svg'),'alt':'','class':'mclash-brand-icon'});
 		}
+		function countryName(value) {
+			if (typeof value !== 'string' || !value.trim()) return '';
+			value = value.trim();
+			if (!/^[A-Za-z]{2}$/.test(value)) return value;
+			var code = value.toUpperCase();
+			try {
+				if (Intl && Intl.DisplayNames) return new Intl.DisplayNames(['zh-CN'], {type:'region'}).of(code) || code;
+			} catch (_) {}
+			return ({CN:'中国',US:'美国',JP:'日本',KR:'韩国',SG:'新加坡',HK:'中国香港',TW:'中国台湾',GB:'英国',DE:'德国',FR:'法国',CA:'加拿大',AU:'澳大利亚',NL:'荷兰',RU:'俄罗斯',IN:'印度'})[code] || code;
+		}
 		function probeCard(title,icon,color,kind) {
 			var value = E('span',{'class':'mclash-status-value'},[_('点我检测')]);
 			var card = statusCard(title,icon,color,value,function() {
@@ -246,18 +261,19 @@ return view.extend({
 					if (result.message) { value.textContent = result.message; }
 					else {
 						value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['◷']),typeof result.latency === 'number' ? result.latency+' ms' : (result.latency_error || _('检测失败'))]));
-						value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['◎']),result.ip || result.ip_error || _('出口查询失败')]));
-						if (result.region) value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['⌖']),result.region]));
+						if (result.ip_supported !== false) value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['◎']),result.ip || result.ip_error || _('出口查询失败')]));
+						if (result.country) value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['⚑']),_('国家：')+countryName(result.country)]));
+						if (result.region) value.appendChild(E('span',{'class':'mclash-probe-line'},[E('span',{'class':'mclash-result-icon','aria-hidden':'true'},['⌖']),_('地区：')+result.region.trim()]));
 					}
 					value.className = 'mclash-status-value '+(result.ok ? 'mclash-ok' : 'mclash-bad');
 				}).catch(function() { value.textContent = _('检测失败'); value.className = 'mclash-status-value mclash-bad'; }).finally(function() { card.disabled = false; probeCount--; probeSource.disabled = probeCount > 0; });
 			});
-			card.setAttribute('title',_('从所选设备的网络检测 HTTPS 请求耗时与出口 IP，不显式经过 Mihomo 混合端口。网络自身的透明代理或浏览器代理仍可能影响出口。'));
+			card.setAttribute('title',_('从所选设备检测目标网站的 HTTPS 请求耗时；目标网站支持出口查询时显示该网站实际看到的 IP。不支持的站点只显示延迟。'));
 			return card;
 		}
 		var statusBar = E('div',{'class':'mclash-status-grid'},[
-			runtimeCard,proxyView.element,probeCard(_('Telegram 连接'),probeIcon('telegram'),'#26a5e4','telegram'),probeCard(_('OpenAI 连接'),probeIcon('openai'),'#10a37f','openai'),
-			probeCard(_('百度连接'),probeIcon('baidu'),'#2932e1','baidu'),probeCard(_('谷歌连接'),probeIcon('google'),'#f1f3f4','google'),probeCard(_('GitHub 连接'),probeIcon('github'),'#24292f','github'),probeCard(_('YouTube 连接'),probeIcon('youtube'),'#ff0000','youtube'),probeSource
+			runtimeCard,proxyView.element,probeCard(_('Claude 连接'),probeIcon('claude'),'#d97757','claude'),probeCard(_('OpenAI 连接'),probeIcon('openai'),'#10a37f','openai'),
+			probeCard(_('阿里连接'),probeIcon('aliyun'),'#ff6a00','aliyun'),probeCard(_('腾讯连接'),probeIcon('tencent'),'#07c160','tencent'),probeCard(_('Cloudflare 连接'),probeIcon('cloudflare'),'#f38020','cloudflare'),probeCard(_('Discord 连接'),probeIcon('discord'),'#5865f2','discord'),probeSource
 		]);
 		var configPane = pane('config', _('运行配置'), [
 			preview
@@ -402,7 +418,7 @@ return view.extend({
 		showStatus(data[0]);
 		ui.tabs.initTabGroup([settingsPane, rulesPane, configPane, logsPane, updatePane]);
 		return E('div', {}, [
-			E('style', {}, ".mclash-status-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 24px}.mclash-status-card{display:flex;align-items:center;gap:18px;min-height:82px;padding:16px;border:1px solid var(--border-color-low,#f0f0f0);border-radius:6px;background:var(--background-color-high,#fff);box-shadow:0 2px 14px rgba(0,0,0,.045);text-align:left;text-decoration:none;color:inherit;font:inherit;box-sizing:border-box;cursor:pointer;min-width:0}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:34px}.mclash-probe-source{position:absolute;grid-column:-2/-1;grid-row:1/2;z-index:1;top:6px;right:6px;display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border:1px solid var(--border-color-low,#e5e7eb);border-radius:4px;background:var(--background-color-high,#fff);color:var(--text-color-medium,#667085);font:inherit;font-size:11px;line-height:16px;cursor:pointer;box-shadow:none}.mclash-probe-source:disabled{opacity:.55;cursor:wait}.mclash-probe-source:focus-visible{outline:2px solid var(--primary-color-high,#0069d6)}.mclash-status-card:hover{box-shadow:0 3px 16px rgba(0,0,0,.08);text-decoration:none}.mclash-status-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 46px;border-radius:50%;color:#fff;font-size:23px;font-weight:600}.mclash-panel-icon{display:block;width:32px;height:auto}.mclash-brand-icon{display:block;width:26px;height:26px}.mclash-probe-line{display:flex;gap:5px;align-items:baseline}.mclash-result-icon{flex:0 0 13px;text-align:center;opacity:.75}.mclash-status-body{display:flex;flex-direction:column;gap:7px;min-width:0}.mclash-status-title{font-size:13px;color:var(--text-color-medium,#8b98a8);font-weight:600}.mclash-status-value{font-size:13px;color:#df705b;white-space:pre-line;overflow-wrap:anywhere;line-height:1.4}.mclash-status-value.mclash-ok{color:#2e9f79}.mclash-status-value.mclash-bad{color:#d32f2f}.mclash-capture-state{display:block;color:var(--text-color-medium,#8b98a8);font-size:11px;margin-top:3px}.mclash-panel-card[aria-disabled=true]{opacity:.5;cursor:default}.mclash-status-card:focus-visible{outline:2px solid var(--primary-color-high,#0069d6);outline-offset:2px}.mclash-status-card:disabled{cursor:wait}@media(max-width:900px){.mclash-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mclash-probe-source{grid-column:2/3;grid-row:1/2;top:6px;right:6px}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:16px}.mclash-status-grid>.mclash-status-card:nth-child(2){padding-top:34px}}@media(max-width:500px){.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:10px}.mclash-status-grid{gap:8px;margin:12px 0 18px}.mclash-status-card{gap:10px;padding:10px;min-height:76px}.mclash-status-icon{width:32px;height:32px;flex-basis:32px;font-size:17px}.mclash-panel-icon{width:24px}.mclash-status-title,.mclash-status-value{font-size:12px}}" + "\n.mclash-status-scroll{margin:10px 0 18px;overflow:hidden}\n.mclash-status-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 0}\n.mclash-status-info,.mclash-status-actions{display:flex;align-items:center;gap:16px}\n.mclash-status-actions{margin-left:auto;gap:8px}\n.mclash-status-actions>.btn{white-space:nowrap;margin:0}\n.mclash-panel-button[aria-disabled=true]{opacity:.5;cursor:default}\n.mclash-panel-button[aria-disabled=false]{color:var(--primary-color-high,#0069d6)}\n.mclash-ok{color:#2e7d32}.mclash-bad{color:#d32f2f}\n.mclash-settings-nav{margin-bottom:18px}\n.mclash-settings-nav>li>.mclash-subtab{background:none;border:0;box-shadow:none;color:inherit;line-height:25px;padding:4px 6px;height:auto;min-height:0;border-radius:4px 4px 0 0;font-size:13px;font-weight:400;text-shadow:none}\n.mclash-settings-layout{padding:0;border:0;background:none}\n.mclash-settings-card{display:none;border:0;background:none;padding:0;margin:0 0 18px}\n.mclash-settings-layout[data-settings-active=basic] [data-settings-group=capture],.mclash-settings-layout[data-settings-active=basic] [data-settings-group=control],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=nodes],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=rules]{display:block}\n.mclash-category-title{font-size:14px;margin:0 0 14px;padding:0;font-weight:600}\n.mclash-rule-tile.btn{display:flex;align-items:center;gap:20px;width:auto;max-width:100%;min-height:30px;padding:0;margin:0 0 12px;border:0;border-radius:0;background:none;color:var(--text-color-high,#404040);box-shadow:none;text-shadow:none;text-align:left;font-size:13px;font-weight:400}\n.mclash-rule-tile.btn:hover{background:none;box-shadow:none}\n.mclash-rule-icon{display:none}\n.mclash-rule-label{display:grid;grid-template-columns:180px minmax(120px,220px);align-items:center;gap:20px;text-align:right;font-size:13px;font-weight:400}\n.mclash-rule-value{display:block;text-align:left;font-size:13px;font-weight:400;color:var(--text-color-medium,#777);margin:0;overflow-wrap:anywhere}\n.mclash-rule-arrow{white-space:nowrap;margin:0;font-weight:400;font-size:12px;min-width:46px;text-align:center}\n.mclash-rule-arrow::before{content:\"设置 \";font-size:12px}\n.mclash-rule-tile:disabled{opacity:.5;cursor:default}\n.mclash-note{margin:0 0 12px;padding:8px 12px;border-left:3px solid var(--primary-color-high,#0069d6);background:rgba(0,105,214,.05)}\n.mclash-log{max-height:55vh;min-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:12px;background:var(--background-color-low,rgba(0,0,0,.025));border:1px solid var(--border-color-medium,#ddd);font-size:12px}\n.mclash-config-preview{white-space:pre!important;word-break:normal;overflow-wrap:normal;scrollbar-width:none;-ms-overflow-style:none}\n.mclash-config-preview::-webkit-scrollbar{display:none;width:0;height:0}\n.mclash-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}\n.mclash-update-versions{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-versions>span{white-space:nowrap}\n.mclash-update-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-progress{width:min(34em,100%);height:12px;overflow:hidden;border:1px solid var(--border-color-medium,#ddd);border-radius:3px;background:var(--background-color-low,#eee)}\n.mclash-update-progress-fill{height:100%;background:var(--primary-color-high,#0069d6);transition:width .3s ease}\n.mclash-lines{width:100%;box-sizing:border-box;white-space:pre!important;overflow-x:auto;overflow-wrap:normal!important;word-break:normal!important}\n.mclash-modal-field{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}\n.mclash-modal-label{display:block;float:none;width:auto;margin:0;padding:0}\n.mclash-modal-control{display:block;width:100%;margin:0}\n.mclash-modal-control>input:not([type=checkbox]),.mclash-modal-control>select,.mclash-dialog-control>input:not([type=checkbox]),.mclash-dialog-control>select{width:100%;box-sizing:border-box}\n.mclash-dialog-control{padding:12px 0}\n.mclash-device-options{display:grid;gap:8px;max-height:50vh;overflow:auto}\n.mclash-device-options label{display:flex;align-items:center;gap:8px}\n@media(max-width:700px){.mclash-status-actions{width:100%;margin:0;overflow-x:auto;scrollbar-width:none}.mclash-status-actions::-webkit-scrollbar{display:none}.mclash-status-actions>.btn{flex-shrink:0}.mclash-status-info{font-size:12px;gap:12px}.mclash-rule-tile.btn{width:100%;gap:10px;margin-bottom:14px}.mclash-rule-label{grid-template-columns:minmax(0,1fr);gap:4px;text-align:left;flex:1;min-width:0}.mclash-rule-value{font-size:12px}.mclash-settings-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.mclash-settings-nav::-webkit-scrollbar{display:none}.mclash-settings-nav>li{flex-shrink:0}.mclash-update-versions{gap:18px}}\n"), map
+			E('style', {}, ".mclash-status-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 24px}.mclash-status-card{display:flex;align-items:center;gap:18px;min-height:82px;padding:16px;border:1px solid var(--border-color-low,#f0f0f0);border-radius:6px;background:var(--background-color-high,#fff);box-shadow:0 2px 14px rgba(0,0,0,.045);text-align:left;text-decoration:none;color:inherit;font:inherit;box-sizing:border-box;cursor:pointer;min-width:0}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:34px}.mclash-probe-source{position:absolute;grid-column:-2/-1;grid-row:1/2;z-index:1;top:6px;right:6px;display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border:1px solid var(--border-color-low,#e5e7eb);border-radius:4px;background:var(--background-color-high,#fff);color:var(--text-color-medium,#667085);font:inherit;font-size:11px;line-height:16px;cursor:pointer;box-shadow:none}.mclash-probe-source:disabled{opacity:.55;cursor:wait}.mclash-probe-source:focus-visible{outline:2px solid var(--primary-color-high,#0069d6)}.mclash-status-card:hover{box-shadow:0 3px 16px rgba(0,0,0,.08);text-decoration:none}.mclash-status-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 46px;border-radius:50%;color:#fff;font-size:23px;font-weight:600}.mclash-panel-icon{display:block;width:32px;height:auto}.mclash-brand-icon{display:block;width:26px;height:26px}.mclash-probe-line{display:flex;gap:5px;align-items:baseline}.mclash-result-icon{flex:0 0 13px;text-align:center;opacity:.75}.mclash-status-body{display:flex;flex-direction:column;gap:7px;min-width:0}.mclash-status-title{font-size:13px;color:var(--text-color-medium,#8b98a8);font-weight:600}.mclash-status-value{font-size:13px;color:#df705b;white-space:pre-line;overflow-wrap:anywhere;line-height:1.4}.mclash-status-value.mclash-ok{color:#2e9f79}.mclash-status-value.mclash-bad{color:#d32f2f}.mclash-capture-state{display:block;color:var(--text-color-medium,#8b98a8);font-size:11px;margin-top:3px}.mclash-panel-card[aria-disabled=true]{opacity:.5;cursor:default}.mclash-status-card:focus-visible{outline:2px solid var(--primary-color-high,#0069d6);outline-offset:2px}.mclash-status-card:disabled{cursor:wait}@media(max-width:900px){.mclash-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mclash-probe-source{grid-column:2/3;grid-row:1/2;top:6px;right:6px}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:16px}.mclash-status-grid>.mclash-status-card:nth-child(2){padding-top:34px}}@media(max-width:500px){.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:10px}.mclash-status-grid{gap:8px;margin:12px 0 18px}.mclash-status-card{gap:10px;padding:10px;min-height:76px}.mclash-status-icon{width:32px;height:32px;flex-basis:32px;font-size:17px}.mclash-panel-icon{width:24px}.mclash-status-title,.mclash-status-value{font-size:12px}}" + "\n.mclash-status-scroll{margin:10px 0 18px;overflow:hidden}\n.mclash-status-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 0}\n.mclash-status-info,.mclash-status-actions{display:flex;align-items:center;gap:16px}\n.mclash-status-actions{margin-left:auto;gap:8px}\n.mclash-status-actions>.btn{white-space:nowrap;margin:0}\n.mclash-panel-button[aria-disabled=true]{opacity:.5;cursor:default}\n.mclash-panel-button[aria-disabled=false]{color:var(--primary-color-high,#0069d6)}\n.mclash-ok{color:#2e7d32}.mclash-bad{color:#d32f2f}\n.mclash-settings-nav{margin-bottom:18px}\n.mclash-settings-nav>li>.mclash-subtab{background:none;border:0;box-shadow:none;color:inherit;line-height:25px;padding:4px 6px;height:auto;min-height:0;border-radius:4px 4px 0 0;font-size:13px;font-weight:400;text-shadow:none}\n.mclash-settings-layout{padding:0;border:0;background:none}\n.mclash-settings-card{display:none;border:0;background:none;padding:0;margin:0 0 18px}\n.mclash-settings-layout[data-settings-active=basic] [data-settings-group=capture],.mclash-settings-layout[data-settings-active=basic] [data-settings-group=control],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=nodes],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=rules]{display:block}\n.mclash-category-title{font-size:14px;margin:0 0 14px;padding:0;font-weight:600}\n.mclash-rule-tile.btn{display:flex;align-items:center;gap:20px;width:auto;max-width:100%;min-height:30px;padding:0;margin:0 0 12px;border:0;border-radius:0;background:none;color:var(--text-color-high,#404040);box-shadow:none;text-shadow:none;text-align:left;font-size:13px;font-weight:400}\n.mclash-rule-tile.btn:hover{background:none;box-shadow:none}\n.mclash-rule-icon{display:none}\n.mclash-rule-label{display:grid;grid-template-columns:180px minmax(120px,220px);align-items:center;gap:20px;text-align:right;font-size:13px;font-weight:400}\n.mclash-rule-value{display:block;text-align:left;font-size:13px;font-weight:400;color:var(--text-color-medium,#777);margin:0;overflow-wrap:anywhere}\n.mclash-rule-arrow{white-space:nowrap;margin:0;font-weight:400;font-size:12px;min-width:46px;text-align:center}\n.mclash-rule-arrow::before{content:\"设置 \";font-size:12px}\n.mclash-rule-tile:disabled{opacity:.5;cursor:default}\n.mclash-note{margin:0 0 12px;padding:8px 12px;border-left:3px solid var(--primary-color-high,#0069d6);background:rgba(0,105,214,.05)}\n.mclash-log{max-height:55vh;min-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:12px;background:var(--background-color-low,rgba(0,0,0,.025));border:1px solid var(--border-color-medium,#ddd);font-size:12px}\n.mclash-config-preview{white-space:pre!important;word-break:normal;overflow-wrap:normal;scrollbar-width:none;-ms-overflow-style:none}\n.mclash-config-preview::-webkit-scrollbar{display:none;width:0;height:0}\n.mclash-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}\n.mclash-update-versions{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-versions>span{white-space:nowrap}\n.mclash-update-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-progress{width:min(34em,100%);height:12px;overflow:hidden;border:1px solid var(--border-color-medium,#ddd);border-radius:3px;background:var(--background-color-low,#eee)}\n.mclash-update-progress-fill{height:100%;background:var(--primary-color-high,#0069d6);transition:width .3s ease}\n.mclash-lines{width:100%;box-sizing:border-box;white-space:pre!important;overflow-x:auto;overflow-wrap:normal!important;word-break:normal!important}\n.mclash-modal-scroll{scrollbar-width:none;-ms-overflow-style:none}\n.mclash-modal-scroll::-webkit-scrollbar{display:none}\n.mclash-subscription-row.mclash-actions{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:4px}\n.mclash-subscription-row::-webkit-scrollbar{display:none}\n.mclash-subscription-row>*{flex-shrink:0}\n.mclash-subscription-name{min-width:8em}\n.mclash-subscription-usage{margin-right:auto;color:var(--text-color-medium,#777)}\n.mclash-modal-field{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}\n.mclash-modal-label{display:block;float:none;width:auto;margin:0;padding:0}\n.mclash-modal-control{display:block;width:100%;margin:0}\n.mclash-modal-control>input:not([type=checkbox]),.mclash-modal-control>select,.mclash-dialog-control>input:not([type=checkbox]),.mclash-dialog-control>select{width:100%;box-sizing:border-box}\n.mclash-dialog-control{padding:12px 0}\n.mclash-device-options{display:grid;gap:8px;max-height:50vh;overflow:auto}\n.mclash-device-options label{display:flex;align-items:center;gap:8px}\n@media(max-width:700px){.mclash-status-actions{width:100%;margin:0;overflow-x:auto;scrollbar-width:none}.mclash-status-actions::-webkit-scrollbar{display:none}.mclash-status-actions>.btn{flex-shrink:0}.mclash-status-info{font-size:12px;gap:12px}.mclash-rule-tile.btn{width:100%;gap:10px;margin-bottom:14px}.mclash-rule-label{grid-template-columns:minmax(0,1fr);gap:4px;text-align:left;flex:1;min-width:0}.mclash-rule-value{font-size:12px}.mclash-settings-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.mclash-settings-nav::-webkit-scrollbar{display:none}.mclash-settings-nav>li{flex-shrink:0}.mclash-update-versions{gap:18px}}\n"), map
 		]);
 	}
 });

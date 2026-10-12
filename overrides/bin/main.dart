@@ -91,8 +91,8 @@ String handle(String action, String content, String payload, {bool normalized = 
         result = updateConfigRules(content, List<String>.from(args['rules']));
       case 'subscription':
         result = buildSubscriptionConfig(args['template'] as String,
-            mergeSubscriptionSources(List<String>.from(args['sources'])),
-            previousConfig: args['refresh'] == true ? content : null);
+            mergeSubscriptionSources(List<String>.from(args['sources']), prefixes: args['prefixes'] == null ? null : List<String>.from(args['prefixes'])),
+            previousConfig: args['refresh'] == true ? content : null, allowEmpty: args['allowEmpty'] == true);
         final previous = loadYaml(content);
         if (previous is Map && previous['external-controller'] is String) {
           final editor = YamlEditor(result as String);
@@ -104,7 +104,7 @@ String handle(String action, String content, String payload, {bool normalized = 
           result = applyNetwork(result as String, networkOptions(content));
         }
       case 'subscriptionSources':
-        result = subscriptionSources(content, args['count'] as int);
+        result = subscriptionSources(content, args['count'] as int, prefixes: args['prefixes'] == null ? null : List<String>.from(args['prefixes']));
       default:
         throw const FormatException('不支持的配置操作');
     }

@@ -24,22 +24,22 @@
         "/usr/libexec/mclash-ui service-logs": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-telegram": [
+        "/usr/libexec/mclash-ui probe-claude": [
           "exec"
         ],
         "/usr/libexec/mclash-ui probe-openai": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-baidu": [
+        "/usr/libexec/mclash-ui probe-aliyun": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-google": [
+        "/usr/libexec/mclash-ui probe-cloudflare": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-github": [
+        "/usr/libexec/mclash-ui probe-tencent": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-youtube": [
+        "/usr/libexec/mclash-ui probe-discord": [
           "exec"
         ]
       }

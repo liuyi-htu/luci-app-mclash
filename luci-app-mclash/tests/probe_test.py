@@ -20,20 +20,24 @@ class ProbeTest(unittest.TestCase):
         self.config.write_text('mixed-port: 7890\n')
         (self.base / 'init').write_text('#!/bin/sh\n[ "$PROBE_ACTIVE" = 1 ]\n')
         (self.base / 'curl').write_text('''#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, sys, urllib.parse
 args=sys.argv[1:]; p=pathlib.Path(os.environ['PROBE_BASE'])
 (p/'args').write_text(json.dumps(args))
 with (p/'history').open('a') as f: f.write(json.dumps(args)+'\\n')
 if '--head' in args and '--max-filesize' in args: sys.exit(63)
 if os.environ.get('PROBE_FAIL') or (os.environ.get('PROBE_HEAD_FAIL') and '--head' in args) or (os.environ.get('PROBE_IP_FAIL') and '--fail' in args): sys.exit(28)
-body='当前 IP：203.0.113.1  来自于：中国 测试地区\\n' if 'myip.ipip.net' in args[-1] else '{"ip":"2001:db8::1","country":"Test","city":"City"}'
+body='h='+('other.example' if os.environ.get('PROBE_BAD_HOST') else urllib.parse.urlparse(args[-1]).hostname)+'\\nip=2001:db8::1\\nloc=JP\\n'
+if 'dns-detect.alicdn.com' in args[-1]: body='mclashProbe('+json.dumps({'retCode':200,'content':{'localIp':'203.0.113.1','ipCountry':'cn','ipProvince':'henan','ipOperator':'cmcc'}})+')'
+if 'r.inews.qq.com' in args[-1]: body='mclashProbe('+json.dumps({'ret':0,'ip':'203.0.113.2','country':'中国','province':'河南','city':'新乡'})+')'
 output=args[args.index('--output')+1]
 if output != '/dev/null': pathlib.Path(output).write_text(body)
 print('0.125',end='')
 ''')
         (self.base / 'jsonfilter').write_text('''#!/usr/bin/env python3
 import json, sys
-args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])); print(data.get(args[args.index('-e')+1][2:],''))
+args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])) if '-i' in args else json.load(sys.stdin)
+for key in args[args.index('-e')+1][2:].split('.'): data=data.get(key,'') if isinstance(data,dict) else ''
+print(data)
 ''')
         for name in ['init', 'curl', 'jsonfilter']:
             (self.base / name).chmod(0o755)
@@ -50,40 +54,29 @@ args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])); print(data.ge
         self.assertFalse(list(self.base.glob('probe.*')), 'temporary response must be cleaned')
         return json.loads(result.stdout)
 
-    def test_exit_and_route(self):
-        result=self.run_probe('baidu'); self.assertEqual(result['ip'],'203.0.113.1'); self.assertIn('测试地区',result['region'])
-        history=[json.loads(line) for line in (self.base/'history').read_text().splitlines()]
-        self.assertEqual(history[0][-1], 'https://www.baidu.com')
-        args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args); self.assertIn('*',args)
-        self.assertIn('--max-time',args); self.assertIn('--max-filesize',args); self.assertNotIn('--insecure',args)
-        self.assertEqual(result['latency'],125)
-        self.assertEqual(self.run_probe('openai')['ip'],'2001:db8::1')
+    def test_trace_targets(self):
+        for kind,host in [('claude','claude.ai'),('openai','chatgpt.com'),('cloudflare','www.cloudflare.com'),('discord','discord.com')]:
+            result=self.run_probe(kind);self.assertTrue(result['ok']);self.assertEqual(result['ip'],'2001:db8::1');self.assertEqual(result['country'],'JP');self.assertNotIn('region',result)
+            args=json.loads((self.base/'args').read_text());self.assertEqual(args[-1],'https://'+host+'/cdn-cgi/trace');self.assertNotIn('--head',args);self.assertNotIn('--proxy',args);self.assertIn('--max-redirs',args)
 
-    def test_stopped_uses_direct_exit(self):
-        self.env['PROBE_ACTIVE']='0'; self.assertTrue(self.run_probe('openai')['ok'])
-        args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
-        self.run_probe('baidu'); args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
+    def test_bad_target_response(self):
+        self.env['PROBE_BAD_HOST']='1';result=self.run_probe('openai');self.assertFalse(result['ok']);self.assertNotIn('ip',result);self.assertEqual(result['latency'],125)
 
-    def test_connectivity_and_failure(self):
-        result=self.run_probe('google'); self.assertEqual(result['latency'],125)
-        args=json.loads((self.base/'history').read_text().splitlines()[0]); self.assertIn('--head',args); self.assertNotIn('--fail',args); self.assertNotIn('--max-filesize',args); self.assertEqual(args[args.index('--output')+1],'/dev/null')
-        self.assertEqual(result['ip'],'2001:db8::1'); self.assertTrue(result['ok'])
-        self.env['PROBE_FAIL']='1'; self.assertFalse(self.run_probe('youtube')['ok'])
-
-    def test_partial_results(self):
-        self.env['PROBE_HEAD_FAIL']='1'
-        result=self.run_probe('github'); self.assertFalse(result['ok']); self.assertIn('ip',result); self.assertNotIn('latency',result)
-        del self.env['PROBE_HEAD_FAIL']; self.env['PROBE_IP_FAIL']='1'
-        result=self.run_probe('youtube'); self.assertFalse(result['ok']); self.assertEqual(result['latency'],125); self.assertNotIn('ip',result)
+    def test_network_failure(self):
+        self.env['PROBE_FAIL']='1'
+        for kind in ['claude','openai','cloudflare','aliyun','tencent','discord']:
+            result=self.run_probe(kind);self.assertFalse(result['ok']);self.assertNotIn('ip',result);self.assertIn('ip_error',result)
 
     def test_all_cards_and_route(self):
         for active in ['0','1']:
             self.env['PROBE_ACTIVE']=active
-            for kind in ['telegram','openai','baidu','google','github','youtube']:
-                result=self.run_probe(kind)
-                self.assertTrue(result['ok']); self.assertEqual(result['latency'],125)
-                self.assertEqual(result['ip'],'203.0.113.1' if kind in ['baidu'] else '2001:db8::1')
-                args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
+            for kind in ['claude','openai','cloudflare','aliyun','tencent','discord']:
+                result=self.run_probe(kind);self.assertTrue(result['ok']);self.assertEqual(result['latency'],125);self.assertTrue(result['ip_supported'])
+                args=json.loads((self.base/'args').read_text());self.assertNotIn('--proxy',args);self.assertIn('*',args);self.assertIn('--max-filesize',args);self.assertNotIn('--insecure',args)
+
+    def test_jsonp_targets(self):
+        for kind,endpoint,ip in [('aliyun','.dns-detect.alicdn.com/api/detect/DescribeDNSLookup?cb=mclashProbe','203.0.113.1'),('tencent','r.inews.qq.com/api/ip2city?otype=jsonp&callback=mclashProbe','203.0.113.2')]:
+            result=self.run_probe(kind);self.assertEqual(result['ip'],ip);self.assertEqual(result['country'],'cn' if kind == 'aliyun' else '中国');self.assertNotIn(result['country'],result['region']);args=json.loads((self.base/'args').read_text());self.assertIn(endpoint,args[-1]);self.assertNotIn('--head',args)
 
     def test_unknown_target_rejected(self):
         result=subprocess.run(['busybox','ash',str(self.script),'https://example.com'],env=self.env,capture_output=True)

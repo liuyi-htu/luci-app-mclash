@@ -51,6 +51,7 @@ python3 "$client_root/luci-app-mclash/tests/timeout_test.py"
 python3 "$client_root/luci-app-mclash/tests/init_test.py"
 python3 "$client_root/luci-app-mclash/tests/probe_test.py"
 node "$client_root/luci-app-mclash/tests/frontend_test.js"
+node "$client_root/luci-app-mclash/tests/management_ui_test.js"
 node "$client_root/luci-app-mclash/tests/browser_probe_test.js"
 node "$client_root/luci-app-mclash/tests/overrides_test.js"
 rsync -a --delete --exclude dist --exclude .build-logs --exclude tests --exclude __pycache__ \
