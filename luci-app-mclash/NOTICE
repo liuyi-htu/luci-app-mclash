@@ -7,3 +7,10 @@ Mihomo is an independently installed upstream component, not bundled here.
 Repository: https://github.com/liuyi-htu/Mclash
 
 Embedded Zashboard v3.29.1 (MIT), official dist-no-fonts.zip SHA256 21371cd111b6b3d87774f3ea3ddeacdcb0f6aff8690a16d652daa3ea6e3b0145. Upstream: https://github.com/Zephyruso/zashboard. Third party notices included in dashboard assets.
+
+Bundled GeoIP.dat and GeoSite.dat from MetaCubeX/meta-rules-dat (GPL-3.0).
+Upstream data sources and build workflow: https://github.com/MetaCubeX/meta-rules-dat
+Release: https://github.com/MetaCubeX/meta-rules-dat/releases/tag/latest
+Downloaded: 2026-10-12. License text: GPL-3.0.txt in the installed documentation.
+GeoIP.dat SHA256: 116cc0f03d48991962f7f9cdbbcf53d45d89777f9c3cd1a663210853e5df6093
+GeoSite.dat SHA256: c951c1afc331ea82a46f568785d73d5bd1bcc99626739639ae9dfaa3f6aa6e71

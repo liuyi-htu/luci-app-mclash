@@ -70,6 +70,11 @@ with tempfile.TemporaryDirectory(prefix='mclash-package-') as temporary:
         assert path.is_file() and path.stat().st_mode & 0o111, str(path)
         subprocess.run(['busybox','ash','-n',str(path)],check=True)
     assert (extracted/'etc/mclash/config.yaml').is_file()
+    # Fresh installations must validate GEOIP/GEOSITE rules without downloads.
+    for name in ['GeoIP.dat', 'GeoSite.dat']:
+        path = Path('etc/mclash') / name
+        assert (extracted / path).read_bytes() == (root / 'root' / path).read_bytes(), str(path)
+        assert (extracted / path).stat().st_size > 0, str(path)
     assert not (extracted/'usr/bin/mihomo').exists()
 
 def digest(path):

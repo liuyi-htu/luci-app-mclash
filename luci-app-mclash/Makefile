@@ -11,6 +11,8 @@ LUCI_PKGARCH:=all
 
 define Package/luci-app-mclash/conffiles
 /etc/mclash/config.yaml
+/etc/mclash/GeoIP.dat
+/etc/mclash/GeoSite.dat
 endef
 
 define Package/luci-app-mclash/prerm

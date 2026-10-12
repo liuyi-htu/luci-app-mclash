@@ -44,6 +44,8 @@
 
 APK 和 IPK 不能互换，安装时按设备实际包管理器选择，并确保当前固件的软件源可提供插件依赖，包括 `kmod-tun` 和 `kmod-nft-tproxy`。首次使用可在「更新内核」中在线安装，或上传 [Mihomo 官方发布页](https://github.com/MetaCubeX/mihomo/releases) 中对应架构的文件。
 
+当前源码与本地构建包内置 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) 的 `GeoIP.dat` 和 `GeoSite.dat`，安装到 `/etc/mclash/`，首次配置校验无需下载这两个数据库。数据库仍按配置自动更新，升级插件时保留已更新的文件；自定义远程规则集仍需单独准备。已发布的 v1.0.2 Release 不包含这次改动。
+
 ## 编译进 OpenWrt 固件
 
 先准备与目标设备匹配的 OpenWrt／ImmortalWrt 源码及 Linux 构建环境。基础构建步骤可参考 [OpenWrt 官方说明](https://github.com/openwrt/openwrt/blob/main/README.md)。在固件源码根目录执行：
