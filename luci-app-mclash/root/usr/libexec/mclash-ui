@@ -54,7 +54,7 @@ lock() {
 [ "$#" -eq 1 ] || fail '参数错误'
 ACTION="$1"
 case "$1" in
- probe-telegram|probe-openai|probe-aliyun|probe-google|probe-github|probe-youtube) exec /usr/libexec/mclash-probe "${1#probe-}" ;;
+ probe-telegram|probe-openai|probe-baidu|probe-google|probe-github|probe-youtube) exec /usr/libexec/mclash-probe "${1#probe-}" ;;
  check-update) exec /usr/libexec/mclash-update check ;;
  update-online) exec /usr/libexec/mclash-update online ;;
  update-local) exec /usr/libexec/mclash-update local ;;

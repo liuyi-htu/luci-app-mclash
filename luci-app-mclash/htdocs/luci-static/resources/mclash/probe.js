@@ -1,6 +1,6 @@
 'use strict';
 'require baseclass';
-var targets = {telegram:'https://telegram.org',openai:'https://chatgpt.com',aliyun:'https://www.aliyun.com',google:'https://www.google.com/generate_204',github:'https://github.com',youtube:'https://www.youtube.com/generate_204'};
+var targets = {telegram:'https://telegram.org',openai:'https://chatgpt.com',baidu:'https://www.baidu.com',google:'https://www.google.com/generate_204',github:'https://github.com',youtube:'https://www.youtube.com/generate_204'};
 function request(url, options, parse) {
  var abort = new AbortController(), timer = setTimeout(function() { abort.abort(); },10000);
  return fetch(url,Object.assign({signal:abort.signal,credentials:'omit',cache:'no-store'},options)).then(parse).finally(function() { clearTimeout(timer); });

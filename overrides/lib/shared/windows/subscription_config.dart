@@ -18,6 +18,33 @@ Object? _plainSubscriptionValue(Object? value) {
 }
 
 /// Resolves names in source order and retains dialer references within a source.
+List<String> subscriptionSources(String content, int count) {
+  if (count < 1) return [];
+  final config = loadYaml(content) as Map;
+  final manual = readManualNodeNames(content).toSet();
+  final batches = List.generate(count, (_) => <Map<String, dynamic>>[]);
+  for (final value in config['proxies'] as List? ?? []) {
+    final node = Map<String, dynamic>.from(_plainSubscriptionValue(value) as Map);
+    final name = node['name'] as String;
+    if (manual.contains(name)) continue;
+    var index = 0;
+    if (count > 1) {
+      final match = RegExp(r'^(\d+)-').firstMatch(name);
+      if (match == null) throw const FormatException('无法识别机场节点归属，请先更新全部机场');
+      index = int.parse(match.group(1)!) - 1;
+      if (index < 0 || index >= count) throw const FormatException('机场节点归属无效');
+      final prefix = '${index + 1}-';
+      node['name'] = name.substring(prefix.length);
+      final upstream = node['dialer-proxy'];
+      if (upstream is String && upstream.startsWith(prefix)) {
+        node['dialer-proxy'] = upstream.substring(prefix.length);
+      }
+    }
+    batches[index].add(node);
+  }
+  return batches.map((nodes) => (YamlEditor('')..update([], {'proxies': nodes})).toString()).toList();
+}
+
 String mergeSubscriptionSources(List<String> sources) {
   if (sources.isEmpty) throw const FormatException('请输入订阅链接');
   if (sources.length == 1) return sources.single;

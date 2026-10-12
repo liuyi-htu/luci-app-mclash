@@ -34,7 +34,10 @@ return view.extend({
 		var capture = E('strong');
 		var running = E('strong'), version = E('strong');
 		var editor = {value: data[1]};
-		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [data[1]]);
+		function previewText(text) {
+			return text.split('\n').filter(function(line) { return !/^# Mclash (?:链路设置:|节点链路(?::|\s))/.test(line); }).join('\n');
+		}
+		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [previewText(data[1])]);
 		var logs = E('pre', {'class': 'mclash-log'}, [_('点击“刷新日志”读取日志。')]);
 		var logKind = E('select', {'class': 'cbi-input-select', 'change': function() { return refreshLogs(); }}, [E('option', {value: 'service'}, ['mclash.log']), E('option', {value: 'core'}, ['mihomo.log']), E('option', {value: 'update'}, ['update.log'])]);
 		logKind.value = 'service';
@@ -75,7 +78,7 @@ return view.extend({
 		var serviceButton = button(_('点击启停'), function() { return refresh().then(function() { return command(state.running ? 'stop' : 'start'); }); });
 		serviceButton.setAttribute('aria-label',_('点击启停'));
 		function refreshPreview() {
-			return command('read-config').then(function(text) { preview.textContent = text; });
+			return command('read-config').then(function(text) { preview.textContent = previewText(text); });
 		}
 		function refreshLogs() {
 			return command(logKind.value === 'core' ? 'logs' : logKind.value + '-logs').then(function(text) {
@@ -125,39 +128,85 @@ return view.extend({
 		function subscriptionDialog() {
 			var prefix = '# Mclash OpenWrt 订阅链接: ';
 			var namePrefix = '# Mclash OpenWrt 机场名称: ';
-			var name = E('input', {'class': 'cbi-input-text', 'value': metadata(namePrefix, '')});
+			var savedNames = metadata(namePrefix, ''), savedLinks = metadata(prefix, []);
+			if (!Array.isArray(savedLinks)) savedLinks = [];
+			var airports = [], nextName = 1, airportList = E('div');
+			function renderAirports() {
+				airportList.textContent = '';
+				airports.forEach(function(airport) {
+					airportList.appendChild(E('div', {'class': 'mclash-modal-field'}, [
+						E('label', {}, [_('机场名称')]), airport.name,
+						E('label', {}, [_('订阅链接')]), airport.url,
+						button(_('更新'), function() { return updateAirports(airport); }, 'cbi-button-save'),
+						E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': function() {
+							if (pulling) return;
+							airports.splice(airports.indexOf(airport), 1); renderAirports();
+						}}, [_('删除机场')])
+					]));
+				});
+			}
+			function addAirport(name, url, sourceIndex) {
+				var defaultName = _('机场 ') + nextName++;
+				airports.push({
+					sourceIndex: sourceIndex,
+					name: E('input', {'class': 'cbi-input-text', 'aria-label': _('机场名称'), 'value': name || defaultName}),
+					url: E('input', {'class': 'cbi-input-text', 'aria-label': _('订阅链接'), 'value': url || '', 'placeholder': 'https://…'})
+				});
+				renderAirports();
+			}
+			savedLinks.forEach(function(link, index) {
+				var name = Array.isArray(savedNames) ? savedNames[index] : (savedNames ? savedNames + (index ? ' ' + (index + 1) : '') : '');
+				addAirport(name, link, index);
+			});
+			nextName = airports.length + 1;
+			if (!airports.length) addAirport('', '');
 			var pulling = false, cancelled = false;
 			var cancelPull = E('button',{'class':'btn mclash-button','disabled':true,'click':function() {
 				if (!pulling) return; cancelled = true; cancelPull.disabled = true;
 				return command('cancel-fetch').then(function(message) { notice.show(message,'info'); }).catch(function(err) { notice.show(err.message,'error'); });
 			}},[_('取消拉取')]);
-			var urls = E('textarea', {'class': 'cbi-input-textarea mclash-lines', 'rows': 4, 'wrap': 'off', 'spellcheck': 'false'});
-			urls.value = metadata(prefix, []).join('\n');
-			ui.showModal(_('机场订阅'), [
-				E('p', {}, [_('机场配置名称')]), name,
-				E('p', {}, [_('订阅链接（每行一个）')]), urls,
-				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
-					cancelPull,' ',button(_('添加或更新'), function() {
-						pulling = true; cancelled = false; cancelPull.disabled = false;
-						return requireStopped().then(function() {
-						var links = Array.from(new Set(urls.value.split(/\r?\n/).map(function(line) { return line.trim(); }).filter(Boolean)));
-						links.forEach(function(link) { var url = new URL(link); if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(_('订阅链接须为 HTTP 或 HTTPS')); });
-						var sources = [], fetching = Promise.resolve();
-						if (!links.length) throw new Error(_('请填写订阅链接'));
-						links.forEach(function(link) {
-							fetching = fetching.then(function() { if (cancelled) throw new Error(_('订阅拉取已取消')); return fs.write('/etc/mclash/subscription.url', link, 384); })
-								.then(function() { return command('fetch-subscription'); }).then(function(content) { sources.push(content); });
+			function updateAirports(target) {
+				pulling = true; cancelled = false; cancelPull.disabled = false;
+				return requireStopped().then(function() {
+					var entries = airports.map(function(airport) { return {name: airport.name.value.trim(), url: airport.url.value.trim(), sourceIndex: airport.sourceIndex}; });
+					if (!entries.length) throw new Error(_('请添加机场'));
+					entries.forEach(function(airport) {
+						if (!airport.name) throw new Error(_('请填写每个机场的名称'));
+						if (!airport.url) throw new Error(_('请填写每个机场的订阅链接'));
+						var url = new URL(airport.url); if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(_('订阅链接须为 HTTP 或 HTTPS'));
+					});
+					var names = entries.map(function(airport) { return airport.name; }), links = entries.map(function(airport) { return airport.url; });
+					if (new Set(names).size !== names.length) throw new Error(_('机场名称不能重复'));
+					if (new Set(links).size !== links.length) throw new Error(_('订阅链接不能重复'));
+					var sources = [], fetching = Promise.resolve(), selectedIndex = airports.indexOf(target);
+					if (target) {
+						var retained = overrides.call('subscriptionSources', editor.value, {count: savedLinks.length});
+						sources = entries.map(function(entry, index) {
+							if (index === selectedIndex) return '';
+							if (!retained[entry.sourceIndex] || entry.url !== savedLinks[entry.sourceIndex]) throw new Error(_('其他机场有未保存的链接，请先更新全部机场'));
+							return retained[entry.sourceIndex];
 						});
-						return fetching.then(function() {
-							if (cancelled) throw new Error(_('订阅拉取已取消'));
-							pulling = false; cancelPull.disabled = true;
-							var previous = editor.value;
-							var generated = overrides.call('subscription', previous, {template: template.text, sources: sources, refresh: overrides.call('summary', previous).groups.length > 0});
-							generated = generated.split('\n').filter(function(line) { return line.indexOf(prefix) !== 0 && line.indexOf(namePrefix) !== 0; }).join('\n');
-							return persist(namePrefix + JSON.stringify(name.value.trim()) + '\n' + prefix + JSON.stringify(links) + '\n' + generated);
-						}).then(function(message) { ui.hideModal(); return message; });
-						}).finally(function() { pulling = false; cancelPull.disabled = true; });
-					}, 'cbi-button-save')
+					}
+					links.forEach(function(link, index) {
+						if (target && index !== selectedIndex) return;
+						fetching = fetching.then(function() { if (cancelled) throw new Error(_('订阅拉取已取消')); return fs.write('/etc/mclash/subscription.url', link, 384); })
+							.then(function() { return command('fetch-subscription'); }).then(function(content) { sources[index] = content; });
+					});
+					return fetching.then(function() {
+						if (cancelled) throw new Error(_('订阅拉取已取消'));
+						pulling = false; cancelPull.disabled = true;
+						var previous = editor.value;
+						var generated = overrides.call('subscription', previous, {template: template.text, sources: sources, refresh: overrides.call('summary', previous).groups.length > 0});
+						generated = generated.split('\n').filter(function(line) { return line.indexOf(prefix) !== 0 && line.indexOf(namePrefix) !== 0; }).join('\n');
+						return persist(namePrefix + JSON.stringify(names) + '\n' + prefix + JSON.stringify(links) + '\n' + generated);
+					}).then(function(message) { ui.hideModal(); return message; });
+				}).finally(function() { pulling = false; cancelPull.disabled = true; });
+			}
+			ui.showModal(_('机场订阅'), [
+				airportList,
+				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': function() { if (!pulling) addAirport('', ''); }}, [_('添加机场')]),
+				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
+					cancelPull,' ',button(_('更新全部机场'), function() { return updateAirports(null); }, 'cbi-button-save')
 				])
 			]);
 		}
@@ -207,8 +256,8 @@ return view.extend({
 			return card;
 		}
 		var statusBar = E('div',{'class':'mclash-status-grid'},[
-			runtimeCard,proxyView.element,probeCard(_('Telegram 连接'),probeIcon('telegram'),'#26a5e4','telegram'),E('div',{'class':'mclash-probe-host'},[probeCard(_('OpenAI 连接'),probeIcon('openai'),'#10a37f','openai'),probeSource]),
-			probeCard(_('阿里连接'),probeIcon('aliyun'),'#ff6a00','aliyun'),probeCard(_('谷歌连接'),probeIcon('google'),'#f1f3f4','google'),probeCard(_('GitHub 连接'),probeIcon('github'),'#24292f','github'),probeCard(_('YouTube 连接'),probeIcon('youtube'),'#ff0000','youtube')
+			runtimeCard,proxyView.element,probeCard(_('Telegram 连接'),probeIcon('telegram'),'#26a5e4','telegram'),probeCard(_('OpenAI 连接'),probeIcon('openai'),'#10a37f','openai'),
+			probeCard(_('百度连接'),probeIcon('baidu'),'#2932e1','baidu'),probeCard(_('谷歌连接'),probeIcon('google'),'#f1f3f4','google'),probeCard(_('GitHub 连接'),probeIcon('github'),'#24292f','github'),probeCard(_('YouTube 连接'),probeIcon('youtube'),'#ff0000','youtube'),probeSource
 		]);
 		var configPane = pane('config', _('运行配置'), [
 			preview
@@ -353,7 +402,7 @@ return view.extend({
 		showStatus(data[0]);
 		ui.tabs.initTabGroup([settingsPane, rulesPane, configPane, logsPane, updatePane]);
 		return E('div', {}, [
-			E('style', {}, ".mclash-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 24px}.mclash-status-card{display:flex;align-items:center;gap:18px;min-height:82px;padding:16px;border:1px solid var(--border-color-low,#f0f0f0);border-radius:6px;background:var(--background-color-high,#fff);box-shadow:0 2px 14px rgba(0,0,0,.045);text-align:left;text-decoration:none;color:inherit;font:inherit;box-sizing:border-box;cursor:pointer;min-width:0}.mclash-probe-host{position:relative;min-width:0}.mclash-probe-host>.mclash-status-card{width:100%;height:100%;padding-top:34px}.mclash-probe-source{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border:1px solid var(--border-color-low,#e5e7eb);border-radius:4px;background:var(--background-color-high,#fff);color:var(--text-color-medium,#667085);font:inherit;font-size:11px;line-height:16px;cursor:pointer;box-shadow:none}.mclash-probe-source:disabled{opacity:.55;cursor:wait}.mclash-probe-source:focus-visible{outline:2px solid var(--primary-color-high,#0069d6)}.mclash-status-card:hover{box-shadow:0 3px 16px rgba(0,0,0,.08);text-decoration:none}.mclash-status-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 46px;border-radius:50%;color:#fff;font-size:23px;font-weight:600}.mclash-panel-icon{display:block;width:32px;height:auto}.mclash-brand-icon{display:block;width:26px;height:26px}.mclash-probe-line{display:flex;gap:5px;align-items:baseline}.mclash-result-icon{flex:0 0 13px;text-align:center;opacity:.75}.mclash-status-body{display:flex;flex-direction:column;gap:7px;min-width:0}.mclash-status-title{font-size:13px;color:var(--text-color-medium,#8b98a8);font-weight:600}.mclash-status-value{font-size:13px;color:#df705b;white-space:pre-line;overflow-wrap:anywhere;line-height:1.4}.mclash-status-value.mclash-ok{color:#2e9f79}.mclash-status-value.mclash-bad{color:#d32f2f}.mclash-capture-state{display:block;color:var(--text-color-medium,#8b98a8);font-size:11px;margin-top:3px}.mclash-panel-card[aria-disabled=true]{opacity:.5;cursor:default}.mclash-status-card:focus-visible{outline:2px solid var(--primary-color-high,#0069d6);outline-offset:2px}.mclash-status-card:disabled{cursor:wait}@media(max-width:900px){.mclash-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:500px){.mclash-status-grid{gap:8px;margin:12px 0 18px}.mclash-status-card{gap:10px;padding:10px;min-height:76px}.mclash-status-icon{width:32px;height:32px;flex-basis:32px;font-size:17px}.mclash-panel-icon{width:24px}.mclash-status-title,.mclash-status-value{font-size:12px}}" + "\n.mclash-status-scroll{margin:10px 0 18px;overflow:hidden}\n.mclash-status-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 0}\n.mclash-status-info,.mclash-status-actions{display:flex;align-items:center;gap:16px}\n.mclash-status-actions{margin-left:auto;gap:8px}\n.mclash-status-actions>.btn{white-space:nowrap;margin:0}\n.mclash-panel-button[aria-disabled=true]{opacity:.5;cursor:default}\n.mclash-panel-button[aria-disabled=false]{color:var(--primary-color-high,#0069d6)}\n.mclash-ok{color:#2e7d32}.mclash-bad{color:#d32f2f}\n.mclash-settings-nav{margin-bottom:18px}\n.mclash-settings-nav>li>.mclash-subtab{background:none;border:0;box-shadow:none;color:inherit;line-height:25px;padding:4px 6px;height:auto;min-height:0;border-radius:4px 4px 0 0;font-size:13px;font-weight:400;text-shadow:none}\n.mclash-settings-layout{padding:0;border:0;background:none}\n.mclash-settings-card{display:none;border:0;background:none;padding:0;margin:0 0 18px}\n.mclash-settings-layout[data-settings-active=basic] [data-settings-group=capture],.mclash-settings-layout[data-settings-active=basic] [data-settings-group=control],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=nodes],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=rules]{display:block}\n.mclash-category-title{font-size:14px;margin:0 0 14px;padding:0;font-weight:600}\n.mclash-rule-tile.btn{display:flex;align-items:center;gap:20px;width:auto;max-width:100%;min-height:30px;padding:0;margin:0 0 12px;border:0;border-radius:0;background:none;color:var(--text-color-high,#404040);box-shadow:none;text-shadow:none;text-align:left;font-size:13px;font-weight:400}\n.mclash-rule-tile.btn:hover{background:none;box-shadow:none}\n.mclash-rule-icon{display:none}\n.mclash-rule-label{display:grid;grid-template-columns:180px minmax(120px,220px);align-items:center;gap:20px;text-align:right;font-size:13px;font-weight:400}\n.mclash-rule-value{display:block;text-align:left;font-size:13px;font-weight:400;color:var(--text-color-medium,#777);margin:0;overflow-wrap:anywhere}\n.mclash-rule-arrow{white-space:nowrap;margin:0;font-weight:400;font-size:12px;min-width:46px;text-align:center}\n.mclash-rule-arrow::before{content:\"设置 \";font-size:12px}\n.mclash-rule-tile:disabled{opacity:.5;cursor:default}\n.mclash-note{margin:0 0 12px;padding:8px 12px;border-left:3px solid var(--primary-color-high,#0069d6);background:rgba(0,105,214,.05)}\n.mclash-log{max-height:55vh;min-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:12px;background:var(--background-color-low,rgba(0,0,0,.025));border:1px solid var(--border-color-medium,#ddd);font-size:12px}\n.mclash-config-preview{white-space:pre!important;word-break:normal;overflow-wrap:normal;scrollbar-width:none;-ms-overflow-style:none}\n.mclash-config-preview::-webkit-scrollbar{display:none;width:0;height:0}\n.mclash-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}\n.mclash-update-versions{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-versions>span{white-space:nowrap}\n.mclash-update-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-progress{width:min(34em,100%);height:12px;overflow:hidden;border:1px solid var(--border-color-medium,#ddd);border-radius:3px;background:var(--background-color-low,#eee)}\n.mclash-update-progress-fill{height:100%;background:var(--primary-color-high,#0069d6);transition:width .3s ease}\n.mclash-lines{width:100%;box-sizing:border-box;white-space:pre!important;overflow-x:auto;overflow-wrap:normal!important;word-break:normal!important}\n.mclash-modal-field{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}\n.mclash-modal-label{display:block;float:none;width:auto;margin:0;padding:0}\n.mclash-modal-control{display:block;width:100%;margin:0}\n.mclash-modal-control>input:not([type=checkbox]),.mclash-modal-control>select,.mclash-dialog-control>input:not([type=checkbox]),.mclash-dialog-control>select{width:100%;box-sizing:border-box}\n.mclash-dialog-control{padding:12px 0}\n.mclash-device-options{display:grid;gap:8px;max-height:50vh;overflow:auto}\n.mclash-device-options label{display:flex;align-items:center;gap:8px}\n@media(max-width:700px){.mclash-status-actions{width:100%;margin:0;overflow-x:auto;scrollbar-width:none}.mclash-status-actions::-webkit-scrollbar{display:none}.mclash-status-actions>.btn{flex-shrink:0}.mclash-status-info{font-size:12px;gap:12px}.mclash-rule-tile.btn{width:100%;gap:10px;margin-bottom:14px}.mclash-rule-label{grid-template-columns:minmax(0,1fr);gap:4px;text-align:left;flex:1;min-width:0}.mclash-rule-value{font-size:12px}.mclash-settings-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.mclash-settings-nav::-webkit-scrollbar{display:none}.mclash-settings-nav>li{flex-shrink:0}.mclash-update-versions{gap:18px}}\n"), map
+			E('style', {}, ".mclash-status-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 24px}.mclash-status-card{display:flex;align-items:center;gap:18px;min-height:82px;padding:16px;border:1px solid var(--border-color-low,#f0f0f0);border-radius:6px;background:var(--background-color-high,#fff);box-shadow:0 2px 14px rgba(0,0,0,.045);text-align:left;text-decoration:none;color:inherit;font:inherit;box-sizing:border-box;cursor:pointer;min-width:0}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:34px}.mclash-probe-source{position:absolute;grid-column:-2/-1;grid-row:1/2;z-index:1;top:6px;right:6px;display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border:1px solid var(--border-color-low,#e5e7eb);border-radius:4px;background:var(--background-color-high,#fff);color:var(--text-color-medium,#667085);font:inherit;font-size:11px;line-height:16px;cursor:pointer;box-shadow:none}.mclash-probe-source:disabled{opacity:.55;cursor:wait}.mclash-probe-source:focus-visible{outline:2px solid var(--primary-color-high,#0069d6)}.mclash-status-card:hover{box-shadow:0 3px 16px rgba(0,0,0,.08);text-decoration:none}.mclash-status-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 46px;border-radius:50%;color:#fff;font-size:23px;font-weight:600}.mclash-panel-icon{display:block;width:32px;height:auto}.mclash-brand-icon{display:block;width:26px;height:26px}.mclash-probe-line{display:flex;gap:5px;align-items:baseline}.mclash-result-icon{flex:0 0 13px;text-align:center;opacity:.75}.mclash-status-body{display:flex;flex-direction:column;gap:7px;min-width:0}.mclash-status-title{font-size:13px;color:var(--text-color-medium,#8b98a8);font-weight:600}.mclash-status-value{font-size:13px;color:#df705b;white-space:pre-line;overflow-wrap:anywhere;line-height:1.4}.mclash-status-value.mclash-ok{color:#2e9f79}.mclash-status-value.mclash-bad{color:#d32f2f}.mclash-capture-state{display:block;color:var(--text-color-medium,#8b98a8);font-size:11px;margin-top:3px}.mclash-panel-card[aria-disabled=true]{opacity:.5;cursor:default}.mclash-status-card:focus-visible{outline:2px solid var(--primary-color-high,#0069d6);outline-offset:2px}.mclash-status-card:disabled{cursor:wait}@media(max-width:900px){.mclash-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mclash-probe-source{grid-column:2/3;grid-row:1/2;top:6px;right:6px}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:16px}.mclash-status-grid>.mclash-status-card:nth-child(2){padding-top:34px}}@media(max-width:500px){.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:10px}.mclash-status-grid{gap:8px;margin:12px 0 18px}.mclash-status-card{gap:10px;padding:10px;min-height:76px}.mclash-status-icon{width:32px;height:32px;flex-basis:32px;font-size:17px}.mclash-panel-icon{width:24px}.mclash-status-title,.mclash-status-value{font-size:12px}}" + "\n.mclash-status-scroll{margin:10px 0 18px;overflow:hidden}\n.mclash-status-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 0}\n.mclash-status-info,.mclash-status-actions{display:flex;align-items:center;gap:16px}\n.mclash-status-actions{margin-left:auto;gap:8px}\n.mclash-status-actions>.btn{white-space:nowrap;margin:0}\n.mclash-panel-button[aria-disabled=true]{opacity:.5;cursor:default}\n.mclash-panel-button[aria-disabled=false]{color:var(--primary-color-high,#0069d6)}\n.mclash-ok{color:#2e7d32}.mclash-bad{color:#d32f2f}\n.mclash-settings-nav{margin-bottom:18px}\n.mclash-settings-nav>li>.mclash-subtab{background:none;border:0;box-shadow:none;color:inherit;line-height:25px;padding:4px 6px;height:auto;min-height:0;border-radius:4px 4px 0 0;font-size:13px;font-weight:400;text-shadow:none}\n.mclash-settings-layout{padding:0;border:0;background:none}\n.mclash-settings-card{display:none;border:0;background:none;padding:0;margin:0 0 18px}\n.mclash-settings-layout[data-settings-active=basic] [data-settings-group=capture],.mclash-settings-layout[data-settings-active=basic] [data-settings-group=control],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=nodes],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=rules]{display:block}\n.mclash-category-title{font-size:14px;margin:0 0 14px;padding:0;font-weight:600}\n.mclash-rule-tile.btn{display:flex;align-items:center;gap:20px;width:auto;max-width:100%;min-height:30px;padding:0;margin:0 0 12px;border:0;border-radius:0;background:none;color:var(--text-color-high,#404040);box-shadow:none;text-shadow:none;text-align:left;font-size:13px;font-weight:400}\n.mclash-rule-tile.btn:hover{background:none;box-shadow:none}\n.mclash-rule-icon{display:none}\n.mclash-rule-label{display:grid;grid-template-columns:180px minmax(120px,220px);align-items:center;gap:20px;text-align:right;font-size:13px;font-weight:400}\n.mclash-rule-value{display:block;text-align:left;font-size:13px;font-weight:400;color:var(--text-color-medium,#777);margin:0;overflow-wrap:anywhere}\n.mclash-rule-arrow{white-space:nowrap;margin:0;font-weight:400;font-size:12px;min-width:46px;text-align:center}\n.mclash-rule-arrow::before{content:\"设置 \";font-size:12px}\n.mclash-rule-tile:disabled{opacity:.5;cursor:default}\n.mclash-note{margin:0 0 12px;padding:8px 12px;border-left:3px solid var(--primary-color-high,#0069d6);background:rgba(0,105,214,.05)}\n.mclash-log{max-height:55vh;min-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:12px;background:var(--background-color-low,rgba(0,0,0,.025));border:1px solid var(--border-color-medium,#ddd);font-size:12px}\n.mclash-config-preview{white-space:pre!important;word-break:normal;overflow-wrap:normal;scrollbar-width:none;-ms-overflow-style:none}\n.mclash-config-preview::-webkit-scrollbar{display:none;width:0;height:0}\n.mclash-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}\n.mclash-update-versions{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-versions>span{white-space:nowrap}\n.mclash-update-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-progress{width:min(34em,100%);height:12px;overflow:hidden;border:1px solid var(--border-color-medium,#ddd);border-radius:3px;background:var(--background-color-low,#eee)}\n.mclash-update-progress-fill{height:100%;background:var(--primary-color-high,#0069d6);transition:width .3s ease}\n.mclash-lines{width:100%;box-sizing:border-box;white-space:pre!important;overflow-x:auto;overflow-wrap:normal!important;word-break:normal!important}\n.mclash-modal-field{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}\n.mclash-modal-label{display:block;float:none;width:auto;margin:0;padding:0}\n.mclash-modal-control{display:block;width:100%;margin:0}\n.mclash-modal-control>input:not([type=checkbox]),.mclash-modal-control>select,.mclash-dialog-control>input:not([type=checkbox]),.mclash-dialog-control>select{width:100%;box-sizing:border-box}\n.mclash-dialog-control{padding:12px 0}\n.mclash-device-options{display:grid;gap:8px;max-height:50vh;overflow:auto}\n.mclash-device-options label{display:flex;align-items:center;gap:8px}\n@media(max-width:700px){.mclash-status-actions{width:100%;margin:0;overflow-x:auto;scrollbar-width:none}.mclash-status-actions::-webkit-scrollbar{display:none}.mclash-status-actions>.btn{flex-shrink:0}.mclash-status-info{font-size:12px;gap:12px}.mclash-rule-tile.btn{width:100%;gap:10px;margin-bottom:14px}.mclash-rule-label{grid-template-columns:minmax(0,1fr);gap:4px;text-align:left;flex:1;min-width:0}.mclash-rule-value{font-size:12px}.mclash-settings-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.mclash-settings-nav::-webkit-scrollbar{display:none}.mclash-settings-nav>li{flex-shrink:0}.mclash-update-versions{gap:18px}}\n"), map
 		]);
 	}
 });

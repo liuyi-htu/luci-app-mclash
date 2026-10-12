@@ -96,7 +96,7 @@ cd luci-app-mclash
 
 脚本下载并校验固定 SDK：`arm64` 使用 ImmortalWrt 25.12.1 filogic SDK，生成 APK；`x86_64` 使用 ImmortalWrt 24.10.4 SDK，生成 IPK。这两个选项表示构建所用 SDK，插件本身不含对应架构的 Mihomo 内核。其他固件版本建议使用其匹配 SDK 或固件源码编译。
 
-生成的安装包及同名 `.sha256` 文件位于 `dist/`，验证记录位于 `.build-logs/`，缓存位于 `.build-cache/`。默认版本为 `1.0.3`，构建号为 `1`。
+生成的安装包及同名 `.sha256` 文件位于 `dist/`，验证记录位于 `.build-logs/`，缓存位于 `.build-cache/`。默认版本为 `1.0.4`，构建号为 `1`。
 
 | 环境变量 | 用途 |
 | --- | --- |
@@ -108,28 +108,28 @@ cd luci-app-mclash
 
 ## 直接安装 APK／IPK
 
-从 [GitHub Releases](https://github.com/liuyi-htu/luci-app-mclash/releases/latest) 下载与设备包管理器匹配的安装包及同名 `.sha256` 文件，即可直接安装，无需编译固件。也可由上述 SDK 或固件编译步骤生成安装包。以下以 `1.0.3-r1` 为例，文件名和路由器地址请替换为实际值；下载的文件请放入 `dist/`，或调整上传命令中的本地路径。
+从 [GitHub Releases](https://github.com/liuyi-htu/luci-app-mclash/releases/latest) 下载与设备包管理器匹配的安装包及同名 `.sha256` 文件，即可直接安装，无需编译固件。也可由上述 SDK 或固件编译步骤生成安装包。以下以 `1.0.4-r1` 为例，文件名和路由器地址请替换为实际值；下载的文件请放入 `dist/`，或调整上传命令中的本地路径。
 
-当前发布版本为 `v1.0.3`（安装包 `1.0.3-r1`），内置 GeoIP／GeoSite 数据库，首次配置校验无需下载这两个文件，升级时保留已更新的数据库。
+当前发布版本为 `v1.0.4`（安装包 `1.0.4-r1`），支持每个机场独立命名与更新、链式节点列表互斥，调整手机检测来源按钮位置，并将阿里检测替换为百度。保留内置 GeoIP／GeoSite 数据库。
 
-- [下载 APK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.3/luci-app-mclash-1.0.3-r1.apk) · [APK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.3/luci-app-mclash-1.0.3-r1.apk.sha256)
-- [下载 IPK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.3/luci-app-mclash_1.0.3-r1_all.ipk) · [IPK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.3/luci-app-mclash_1.0.3-r1_all.ipk.sha256)
+- [下载 APK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.4/luci-app-mclash-1.0.4-r1.apk) · [APK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.4/luci-app-mclash-1.0.4-r1.apk.sha256)
+- [下载 IPK](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.4/luci-app-mclash_1.0.4-r1_all.ipk) · [IPK 校验文件](https://github.com/liuyi-htu/luci-app-mclash/releases/download/v1.0.4/luci-app-mclash_1.0.4-r1_all.ipk.sha256)
 
 ### APK 设备
 
 电脑上传安装包与校验文件：
 
 ```sh
-scp -O dist/luci-app-mclash-1.0.3-r1.apk dist/luci-app-mclash-1.0.3-r1.apk.sha256 root@192.168.1.1:/tmp/
+scp -O dist/luci-app-mclash-1.0.4-r1.apk dist/luci-app-mclash-1.0.4-r1.apk.sha256 root@192.168.1.1:/tmp/
 ```
 
 登录路由器后执行：
 
 ```sh
 cd /tmp
-sha256sum -c luci-app-mclash-1.0.3-r1.apk.sha256
+sha256sum -c luci-app-mclash-1.0.4-r1.apk.sha256
 apk update
-apk add --allow-untrusted /tmp/luci-app-mclash-1.0.3-r1.apk
+apk add --allow-untrusted /tmp/luci-app-mclash-1.0.4-r1.apk
 /etc/init.d/rpcd restart
 ```
 
@@ -138,16 +138,16 @@ apk add --allow-untrusted /tmp/luci-app-mclash-1.0.3-r1.apk
 电脑上传安装包与校验文件：
 
 ```sh
-scp -O dist/luci-app-mclash_1.0.3-r1_all.ipk dist/luci-app-mclash_1.0.3-r1_all.ipk.sha256 root@192.168.1.1:/tmp/
+scp -O dist/luci-app-mclash_1.0.4-r1_all.ipk dist/luci-app-mclash_1.0.4-r1_all.ipk.sha256 root@192.168.1.1:/tmp/
 ```
 
 登录路由器后执行：
 
 ```sh
 cd /tmp
-sha256sum -c luci-app-mclash_1.0.3-r1_all.ipk.sha256
+sha256sum -c luci-app-mclash_1.0.4-r1_all.ipk.sha256
 opkg update
-opkg install /tmp/luci-app-mclash_1.0.3-r1_all.ipk
+opkg install /tmp/luci-app-mclash_1.0.4-r1_all.ipk
 /etc/init.d/rpcd restart
 ```
 

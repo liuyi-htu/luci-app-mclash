@@ -30,7 +30,7 @@
         "/usr/libexec/mclash-ui probe-openai": [
           "exec"
         ],
-        "/usr/libexec/mclash-ui probe-aliyun": [
+        "/usr/libexec/mclash-ui probe-baidu": [
           "exec"
         ],
         "/usr/libexec/mclash-ui probe-google": [

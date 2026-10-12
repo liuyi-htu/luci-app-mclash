@@ -51,7 +51,9 @@ args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])); print(data.ge
         return json.loads(result.stdout)
 
     def test_exit_and_route(self):
-        result=self.run_probe('aliyun'); self.assertEqual(result['ip'],'203.0.113.1'); self.assertIn('测试地区',result['region'])
+        result=self.run_probe('baidu'); self.assertEqual(result['ip'],'203.0.113.1'); self.assertIn('测试地区',result['region'])
+        history=[json.loads(line) for line in (self.base/'history').read_text().splitlines()]
+        self.assertEqual(history[0][-1], 'https://www.baidu.com')
         args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args); self.assertIn('*',args)
         self.assertIn('--max-time',args); self.assertIn('--max-filesize',args); self.assertNotIn('--insecure',args)
         self.assertEqual(result['latency'],125)
@@ -60,7 +62,7 @@ args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])); print(data.ge
     def test_stopped_uses_direct_exit(self):
         self.env['PROBE_ACTIVE']='0'; self.assertTrue(self.run_probe('openai')['ok'])
         args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
-        self.run_probe('aliyun'); args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
+        self.run_probe('baidu'); args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
 
     def test_connectivity_and_failure(self):
         result=self.run_probe('google'); self.assertEqual(result['latency'],125)
@@ -77,10 +79,10 @@ args=sys.argv[1:]; data=json.load(open(args[args.index('-i')+1])); print(data.ge
     def test_all_cards_and_route(self):
         for active in ['0','1']:
             self.env['PROBE_ACTIVE']=active
-            for kind in ['telegram','openai','aliyun','google','github','youtube']:
+            for kind in ['telegram','openai','baidu','google','github','youtube']:
                 result=self.run_probe(kind)
                 self.assertTrue(result['ok']); self.assertEqual(result['latency'],125)
-                self.assertEqual(result['ip'],'203.0.113.1' if kind in ['aliyun'] else '2001:db8::1')
+                self.assertEqual(result['ip'],'203.0.113.1' if kind in ['baidu'] else '2001:db8::1')
                 args=json.loads((self.base/'args').read_text()); self.assertNotIn('--proxy',args)
 
     def test_unknown_target_rejected(self):

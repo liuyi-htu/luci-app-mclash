@@ -11,8 +11,9 @@ global.fetch=async (url,options)=>{
 };
 (async()=>{
  const probe=new Probe();
- for(const kind of ['telegram','openai','aliyun','google','github','youtube']) {
+ for(const kind of ['telegram','openai','baidu','google','github','youtube']) {
   const result=await probe.run(kind,'browser',()=>{throw new Error('must not use router in browser mode');});
+  if(kind==='baidu')assert.equal(requests.filter(r=>r.options.method==='HEAD').at(-1).url,'https://www.baidu.com');
   assert.ok(result.ok);assert.equal(result.ip,'203.0.113.1');assert.equal(result.region,'Test City');assert.equal(typeof result.latency,'number');
  }
  assert.ok(requests.every(x=>x.options.credentials==='omit' && x.options.cache==='no-store'));

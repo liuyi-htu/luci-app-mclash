@@ -103,6 +103,8 @@ String handle(String action, String content, String payload, {bool normalized = 
         if (content.split('\n').any((line) => line.startsWith(networkPrefix))) {
           result = applyNetwork(result as String, networkOptions(content));
         }
+      case 'subscriptionSources':
+        result = subscriptionSources(content, args['count'] as int);
       default:
         throw const FormatException('不支持的配置操作');
     }

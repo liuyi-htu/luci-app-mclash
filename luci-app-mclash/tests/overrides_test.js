@@ -164,3 +164,19 @@ for (let attempt=0; attempt<4; attempt++) {
  repeated=api.call('network',repeated,network);
  assert.equal(repeated.split('\n').filter(line=>line.trim()===marker).length,1);
 }
+
+// Extract existing airport nodes for an independent refresh without fetching peers.
+const airportOne = 'proxies: [{name: edge, type: http, server: one.example, port: 80}, {name: downstream, type: http, server: down.example, port: 80, dialer-proxy: edge}]';
+const airportTwo = 'proxies: [{name: edge, type: http, server: two.example, port: 8080}]';
+let airports = api.call('subscription', base, {template: base, sources: [airportOne, airportTwo], refresh: true});
+airports = api.call('addNode', airports, {link: 'http://manual.example/#manual-airport'});
+const retained = api.call('subscriptionSources', airports, {count: 2});
+assert.match(retained[0], /dialer-proxy: edge/);
+assert.doesNotMatch(retained.join(''), /manual-airport/);
+const refreshedAirports = api.call('subscription', airports, {template: base, sources: [airportOne.replace('one.example','new.example'), retained[1]], refresh: true});
+assert.deepEqual(api.call('subscriptionSources', refreshedAirports, {count: 2})[1], retained[1]);
+assert.match(refreshedAirports, /new.example/);
+assert.ok(api.call('summary', refreshedAirports).manualNodes.includes('manual-airport'));
+const singleAirport = api.call('subscription', base, {template: base, sources: [airportOne], refresh: true});
+assert.match(api.call('subscriptionSources', singleAirport, {count: 1})[0], /name: edge/);
+console.log('Independent airport refresh preserves peer and manual nodes');

@@ -68,27 +68,36 @@ return baseclass.extend({
 			var host = input(summary().host);
 			modal(_('修改 Host'), [field(_('VMess HTTP / WS Host'), host)], function() { return change('host', {host: host.value.trim()}); });
 		}
-		function orderedChoices(names, selected) {
+		function orderedChoices(names, selected, onChange, sortable) {
 			var order = selected.concat(names.filter(function(n) { return selected.indexOf(n) < 0; }));
-			var picked = new Set(selected), container = E('div');
+			var picked = new Set(selected), excluded = new Set(), container = E('div');
+			function move(name, neighbor) {
+				var from = order.indexOf(name), to = order.indexOf(neighbor);
+				order[from] = neighbor; order[to] = name; render();
+			}
 			function render() {
 				while (container.firstChild) container.removeChild(container.firstChild);
-				order.forEach(function(name, index) {
-					var box = E('input', {'type': 'checkbox', 'checked': picked.has(name) ? '' : null, 'change': function() { if (box.checked) picked.add(name); else picked.delete(name); }});
+				var visible = order.filter(function(name) { return !excluded.has(name); });
+				visible.forEach(function(name, index) {
+					var box = E('input', {'type': 'checkbox', 'checked': picked.has(name) ? '' : null, 'change': function() { if (box.checked) picked.add(name); else picked.delete(name); if (onChange) onChange(); }});
 					container.appendChild(E('div', {'class': 'mclash-actions'}, [E('label', {'style': 'flex:1'}, [box, ' ', name]),
-						E('button', {'type': 'button', 'class': 'btn mclash-button', 'disabled': index === 0 ? '' : null, 'click': function() { if (index > 0) { order.splice(index - 1, 0, order.splice(index, 1)[0]); render(); } }}, ['↑']),
-						E('button', {'type': 'button', 'class': 'btn mclash-button', 'disabled': index === order.length - 1 ? '' : null, 'click': function() { if (index < order.length - 1) { order.splice(index + 1, 0, order.splice(index, 1)[0]); render(); } }}, ['↓'])
+						sortable ? E('button', {'type': 'button', 'class': 'btn mclash-button', 'disabled': index === 0 ? '' : null, 'click': function() { if (index > 0) move(name, visible[index - 1]); }}, ['↑']) : '',
+						sortable ? E('button', {'type': 'button', 'class': 'btn mclash-button', 'disabled': index === visible.length - 1 ? '' : null, 'click': function() { if (index < visible.length - 1) move(name, visible[index + 1]); }}, ['↓']) : ''
 					]));
 				});
 			}
 			render();
-			return {element: container, value: function() { return order.filter(function(n) { return picked.has(n); }); }};
+			return {element: container, value: function() { return order.filter(function(n) { return picked.has(n); }); }, exclude: function(names) {
+				excluded = new Set(names); names.forEach(function(name) { picked.delete(name); }); render();
+			}};
 		}
 		function editChain(id) {
 			var s = summary(), roles = s.chains[id] || {};
-			var selected = orderedChoices(s.nodes, roles.front || roles.back || []);
-			var targets = orderedChoices(s.nodes, roles.frontTargets || roles.backTargets || []);
-			modal(_('链路 ') + id, [field(_('链式节点（按连接顺序）'), selected.element), field(_('作用节点'), targets.element)], function() {
+			var selected = orderedChoices(s.nodes, roles.front || roles.back || [], function() { targets.exclude(selected.value()); }, true);
+			var targets = orderedChoices(s.nodes, roles.frontTargets || roles.backTargets || [], function() { selected.exclude(targets.value()); });
+			targets.exclude(selected.value());
+			selected.exclude(targets.value());
+			modal(_('链路 ') + id, [field(_('前置节点（按连接顺序）'), selected.element), field(_('作用节点'), targets.element)], function() {
 				return change('chain', {id: id, selected: selected.value(), targets: targets.value(), prepend: true});
 			});
 		}

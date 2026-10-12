@@ -7,7 +7,7 @@ CURL=/usr/bin/curl
 case "$1" in
  telegram) url=https://telegram.org ;;
  openai) url=https://chatgpt.com ;;
- aliyun) url=https://www.aliyun.com ;;
+ baidu) url=https://www.baidu.com ;;
  google) url=https://www.google.com/generate_204 ;;
  github) url=https://github.com ;;
  youtube) url=https://www.youtube.com/generate_204 ;;
@@ -25,7 +25,7 @@ latency_ok=0
 request_url="$url"
 request_output=/dev/null
 elapsed="$(request "$@" --head)" && latency_ok=1
-case "$kind" in aliyun) exit_kind=domestic ;; *) exit_kind=foreign ;; esac
+case "$kind" in baidu) exit_kind=domestic ;; *) exit_kind=foreign ;; esac
 case "$exit_kind" in domestic) request_url=https://myip.ipip.net ;; foreign) request_url=https://ipwho.is ;; esac
 request_output="$probe_file"
 request "$@" --fail --max-filesize 8192 >/dev/null
