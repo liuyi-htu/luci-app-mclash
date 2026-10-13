@@ -9,7 +9,7 @@ trap unlock EXIT
 trap 'exit 1' HUP INT TERM
 case "$1" in
  stream-core|append-core|clear-core) FILE="$LOGDIR/mihomo.log"; LOCK="$LOCKROOT-core.lock" ;;
- append-service|clear-service) FILE="$LOGDIR/mclash.log"; LOCK="$LOCKROOT-service.lock" ;;
+ append-service|clear-service|separator-service) FILE="$LOGDIR/mclash.log"; LOCK="$LOCKROOT-service.lock" ;;
  append-update|clear-update) FILE="$LOGDIR/mclash-update.log"; LOCK="$LOCKROOT-update.lock" ;;
  *) exit 1 ;;
 esac
@@ -36,13 +36,18 @@ append() {
   tail -c 262144 "$FILE" | sed '1d' > "$FILE.$$"
   cat "$FILE.$$" > "$FILE"; rm -f "$FILE.$$"
  fi
- printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >> "$FILE"
+ if [ "$2" = separator ]; then
+  printf '%s\n' "$line" >> "$FILE"
+ else
+  printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >> "$FILE"
+ fi
  chmod 0600 "$FILE"
  unlock
 }
 case "$1" in
  clear-*) acquire || exit 1; : > "$FILE"; chmod 0600 "$FILE"; unlock ;;
  append-*) append "$2" ;;
+ separator-service) append '------------------------------------------------------------' separator ;;
  stream-core)
   while IFS= read -r line || [ -n "$line" ]; do
    append "$line" || true

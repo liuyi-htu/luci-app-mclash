@@ -96,7 +96,6 @@ down() {
 	[ -f "$STATE/network.owned" ] || return 0
 	local result=0 family oldmode
 	oldmode="$(cat "$STATE/network.owned")"
-	network_log "清理接管：$oldmode，移除防火墙和路由规则"
 	rm -f "$FWIN" "$FWOUT" "$FWFWD" "$STATE/fw-input.nft" "$STATE/fw-output.nft" "$STATE/fw-forward.nft"
 	if "$NFT" list table inet mclash >/dev/null 2>&1; then "$NFT" delete table inet mclash || result=1; fi
 	remove_fw_rules || result=1
@@ -114,7 +113,10 @@ down() {
 	if [ "$oldmode" = tun ] && "$IP" link show dev Mclash >/dev/null 2>&1; then
 		"$IP" link delete dev Mclash || result=1
 	fi
-	if [ "$result" = 0 ]; then rm -f "$STATE/network.owned" "$STATE/network.ready"; network_log '接管清理完成'; else network_log '接管清理不完整，请检查残留规则'; fi
+	if [ "$result" = 0 ]; then
+		rm -f "$STATE/network.owned" "$STATE/network.ready"
+		network_log '防火墙接管规则与策略路由已清理'
+	else network_log '接管清理不完整，请检查残留规则'; fi
 	return "$result"
 }
 check() {
@@ -275,9 +277,7 @@ RULES
 	done
 }
 up() {
-	[ "$MODE" != none ] || { network_log '关闭自动接管，不修改策略路由和接管规则'; return 0; }
-	network_log "准备接管：mode=$MODE interfaces=$IFACES lan=$LAN_PROXY router=$ROUTER ipv6=$IPV6"
-	[ "$LAN_PROXY" = 1 ] || network_log "来源白名单：IPv4=${ACCESS4:-空} IPv6=${ACCESS6:-空}"
+	[ "$MODE" != none ] || return 0
 	check ready
 	# Claim only the named table and exact policy route before any mutation.
 	printf '%s\n' "$MODE" > "$STATE/network.owned"
@@ -294,17 +294,26 @@ up() {
 			"$IP" -"$family" route add default dev Mclash table 166 || fail '创建 TUN 路由失败'
 		fi
 		"$IP" -"$family" rule add pref 1166 fwmark 0x166/0xffffffff lookup 166 || fail '创建策略路由失败'
-		network_log "IPv$family：fwmark 0x166 → 路由表 166，pref 1166；$("$IP" -"$family" route show table 166)"
 	done
 	"$NFT" -f "$STATE/network.nft" || fail '应用 nftables 接管规则失败'
-	network_log '接管已启用，nftables 规则已应用'
 	printf '%s\n' "$MODE" > "$STATE/network.ready"
 	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
+	local router_status=关闭 lan_status=关闭 ipv6_status=关闭
+	[ "$ROUTER" != 1 ] || router_status=开启
+	[ "$IPV6" != 1 ] || ipv6_status=开启
+	if [ "$LAN_PROXY" = 1 ]; then lan_status=全部设备; elif [ -n "$ACCESS4$ACCESS6" ]; then lan_status=仅访问控制指定设备; fi
+	network_log "代理范围：本机=$router_status，局域网=$lan_status，IPv6=$ipv6_status；接口：$IFACES"
+	if [ "$LAN_PROXY" = 1 ]; then
+		network_log '访问控制：局域网全部代理，无需来源白名单'
+	elif [ -n "$ACCESS4$ACCESS6" ]; then
+		network_log "访问控制：IPv4=${ACCESS4:-无}；IPv6=${ACCESS6:-无}"
+	else network_log '访问控制：未指定设备，局域网不代理'; fi
+	network_log '防火墙接管规则与策略路由已应用'
 }
 [ "$#" = 1 ] || fail '参数错误'
 lock
 case "$1" in
-	check) down || fail '无法清理旧接管规则'; load; check; [ "$MODE" != none ] || network_log '关闭自动接管，不修改策略路由和接管规则'; true ;;
+	check) down || fail '无法清理旧接管规则'; load; check ;;
 	up) load; up ;;
 	down) down || fail '清理接管规则失败，请查看日志' ;;
 	*) fail '不支持的接管操作' ;;

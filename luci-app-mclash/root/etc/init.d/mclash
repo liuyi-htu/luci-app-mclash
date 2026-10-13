@@ -3,10 +3,12 @@ START=99
 STOP=10
 USE_PROCD=1
 
-service_log() { /usr/libexec/mclash-log append-service "$1" || true; }
+service_log() {
+	/usr/libexec/mclash-log append-service "$1" || true
+	/usr/libexec/mclash-log separator-service || true
+}
 
 start_service() {
-	service_log '收到启动请求，开始配置校验'
 	[ -x /usr/bin/mihomo ] || { logger -t mclash 'Mihomo core is missing'; service_log '启动失败：Mihomo 内核不存在'; return 1; }
 	[ -s /etc/mclash/config.yaml ] || { service_log '启动失败：配置文件为空或不存在'; return 1; }
 	umask 077
@@ -17,7 +19,6 @@ start_service() {
 		service_log '配置校验失败或超时，未启动服务'
 		return 1
 	fi
-	service_log '配置校验通过'
 	procd_open_instance main
 	procd_set_param command /usr/libexec/mclash-run
 	procd_set_param term_timeout 15
@@ -29,7 +30,6 @@ start_service() {
 }
 
 stop_service() {
-	service_log '停止服务'
 	/usr/libexec/mclash-network down
 	/usr/libexec/mclash-dashboard down
 }

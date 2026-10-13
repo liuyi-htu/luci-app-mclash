@@ -43,7 +43,7 @@ return view.extend({
 					if (typeof names === 'string') return namePrefix + JSON.stringify('1-' + names);
 				} catch (_) {}
 				return line;
-			}).filter(function(line) { return !/^# Mclash (?:链路设置:|节点链路(?::|\s)|OpenWrt 机场(?:前缀|用量):)/.test(line); }).join('\n');
+			}).filter(function(line) { return !/^# Mclash (?:链路设置:|节点链路(?::|\s)|OpenWrt (?:机场(?:前缀|用量):|(?:控制|外部控制器):))/.test(line); }).join('\n');
 		}
 		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [previewText(data[1])]);
 		var logs = E('pre', {'class': 'mclash-log'}, [_('点击“刷新日志”读取日志。')]);

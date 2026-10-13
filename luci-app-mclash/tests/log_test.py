@@ -64,4 +64,15 @@ class LogTest(unittest.TestCase):
         self.assertNotEqual(self.call('clear-core').returncode, 0)
         self.assertEqual(victim.read_text(), 'keep')
 
+    def test_service_separator_is_last_line_and_keeps_history(self):
+        self.call('append-service', '启动完成')
+        self.assertEqual(self.call('separator-service').returncode, 0)
+        self.call('append-service', '服务进程退出，清理完成')
+        self.assertEqual(self.call('separator-service').returncode, 0)
+        lines = (self.logs / 'mclash.log').read_text().splitlines()
+        self.assertIn('启动完成', lines[0])
+        self.assertEqual(lines[1], '-' * 60)
+        self.assertIn('清理完成', lines[2])
+        self.assertEqual(lines[-1], '-' * 60)
+
 if __name__ == '__main__': unittest.main()
