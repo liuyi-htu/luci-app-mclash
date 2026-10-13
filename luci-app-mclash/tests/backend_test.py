@@ -48,6 +48,7 @@ exit 1
             '/etc/mclash/subscription.url': str(self.base/'url'), '/tmp/mclash-subscription.XXXXXX': str(self.base/'fetch.XXXXXX'), '/tmp/mclash-subscription-headers.XXXXXX': str(self.base/'headers.XXXXXX'), '/etc/mclash/api.request.json': str(self.base/'request'), '/usr/bin/curl': str(self.base/'curl'), '/var/lock/mclash-ui.lock': str(self.lock), '/var/log': str(self.base / 'logs'),
             '/usr/libexec/mclash-log': str(self.base / 'log-helper'),
             '/usr/libexec/mclash-network': str(network),
+            '/usr/libexec/mclash-config-language': 'cat',
             '/etc/mclash/.config.XXXXXX': str(self.base/'.config.XXXXXX'),
             'mkdir -p /var/lock': ':',
         }.items():
@@ -76,7 +77,7 @@ printf 'proxies: []\\n' > "$output"
 """)
         result = self.run_command('fetch-subscription')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, '# Mclash 订阅用量: upload=10; download=20; total=100; expire=1893456000\nproxies: []\n')
+        self.assertEqual(result.stdout, '# Mclash subscription-usage: upload=10; download=20; total=100; expire=1893456000\nproxies: []\n')
         self.assertFalse(list(self.base.glob('headers.*')))
         self.assertFalse(list(self.base.glob('fetch.*')))
 
@@ -137,7 +138,7 @@ printf 'proxies: []\\n' > "$output"
         core.symlink_to('/bin/busybox')
         result = self.run_command('validate')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('核心缺失或无法运行', result.stderr)
+        self.assertIn('core is missing or cannot run', result.stderr)
 
     def test_save_rejected_while_service_is_starting(self):
         fakebin = self.base / 'bin'
@@ -153,7 +154,7 @@ printf 'proxies: []\\n' > "$output"
         result = subprocess.run(['busybox', 'ash', str(self.script), 'save'], capture_output=True, text=True,
                                 env=dict(os.environ, PATH=str(fakebin) + ':' + os.environ['PATH']))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('服务正在启动或退出', result.stderr)
+        self.assertIn('Service is starting or exiting', result.stderr)
         self.assertEqual(self.config.read_text(), 'valid old config\n')
         self.assertFalse(self.upload.exists())
 
@@ -181,7 +182,7 @@ printf 'proxies: []\\n' > "$output"
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotIn('not found', result.stderr)
-        self.assertEqual(result.stdout, '配置校验通过\n')
+        self.assertEqual(result.stdout, 'Configuration validation passed\n')
 
     def test_abandoned_lock_recovers(self):
         self.lock.mkdir(); (self.lock/'owner').write_text('99999999 0 fetch-subscription\n')
@@ -225,7 +226,7 @@ printf 'proxies: []\\n' > "$output"
     def test_cancel_without_download_does_not_emit_shell_errors(self):
         result = self.run_command('cancel-fetch')
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, '没有正在拉取的订阅\n')
+        self.assertEqual(result.stdout, 'No subscription fetch is in progress\n')
         self.assertEqual(result.stderr, '')
 
     def test_subscription_hard_timeout_releases_lock(self):
@@ -242,7 +243,7 @@ printf 'proxies: []\\n' > "$output"
         for executable in [fakebin / 'ubus', fakebin / 'jsonfilter']: executable.chmod(0o755)
         result = subprocess.run(['busybox','ash',str(self.script),'stop'],capture_output=True,text=True,timeout=5,
                                 env=dict(os.environ,PATH=str(fakebin)+':'+os.environ['PATH']))
-        self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout,'操作完成\n')
+        self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout,'Operation completed\n')
         self.assertGreaterEqual(int(counter.read_text()),3);self.assertEqual(self.calls.read_text(),'stop\n')
 
     def test_lock_and_unknown_commands(self):

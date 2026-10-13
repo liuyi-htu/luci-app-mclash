@@ -78,7 +78,7 @@ String reorderConfigGroups(String content, List<String> names) {
   if (names.length != groups.length ||
       names.toSet().length != names.length ||
       names.any((name) => !byName.containsKey(name))) {
-    throw const FormatException('代理组排序必须包含所有现有代理组且不能重复');
+    throw const FormatException('Proxy group order must contain every existing group exactly once');
   }
   return (YamlEditor(content)
         ..update(['proxy-groups'], [for (final name in names) byName[name]!]))
@@ -111,13 +111,13 @@ String updateConfigRules(String content, List<String> rules) {
   for (final rule in rules) {
     final parts = rule.split(',');
     if (parts.length < 2 || parts.any((part) => part.trim().isEmpty)) {
-      throw const FormatException('规则格式无效');
+      throw const FormatException('Invalid rule format');
     }
     // SUB-RULE targets a sub-rule section rather than a proxy policy.
     if (parts.first != 'SUB-RULE' &&
         !configPolicies(content)
             .contains(parts[rulePolicyIndex(parts)].trim())) {
-      throw const FormatException('规则目标不存在，请选择有效的节点或代理组');
+      throw const FormatException('Rule target does not exist; select a valid node or proxy group');
     }
   }
   final editor = YamlEditor(content)..update(['rules'], rules);
@@ -136,7 +136,7 @@ void _validateGraph(String content) {
   };
   final active = <String>{}, complete = <String>{};
   void visit(String name) {
-    if (active.contains(name)) throw const FormatException('代理组或链路形成循环');
+    if (active.contains(name)) throw const FormatException('Proxy groups or chains form a cycle');
     if (!complete.add(name)) return;
     active.add(name);
     for (final child in graph[name] ?? <String>[]) {
@@ -154,17 +154,17 @@ String updateConfigGroup(String content, Map<String, dynamic> group,
     {String? oldName, String? filter, bool? includeDirect}) {
   final name = (group['name'] as String).trim();
   if (isProtectedConfigGroup(oldName) && name != oldName) {
-    throw const FormatException('国内和国外代理组的名称不可修改');
+    throw const FormatException('Domestic and Foreign proxy groups cannot be renamed');
   }
   if (name.isEmpty || name.contains(',') || name.contains('\n')) {
-    throw const FormatException('代理组名称不能为空，也不能包含逗号或换行');
+    throw const FormatException('Proxy group name must not be empty or contain commas or newlines');
   }
   if (readProxyChainGroups(content).containsKey(oldName)) {
-    throw const FormatException('链路代理组由链式节点管理');
+    throw const FormatException('Chain groups are managed by Proxy chains');
   }
   final policies = configPolicies(content).where((value) => value != oldName);
   if (policies.contains(name) || name == 'GLOBAL') {
-    throw const FormatException('名称与已有节点或代理组冲突');
+    throw const FormatException('Name conflicts with an existing node or proxy group');
   }
   final groups = configGroups(content);
   final index = groups.indexWhere((item) => item['name'] == oldName);
@@ -179,19 +179,19 @@ String updateConfigGroup(String content, Map<String, dynamic> group,
             .asMap()
             .entries
             .any((entry) => entry.value != members[entry.key])) {
-      throw const FormatException('代理组成员只能通过节点匹配正则修改');
+      throw const FormatException('Proxy group members can only be changed through the node matching regex');
     }
   }
   if (members.contains(name) ||
       members.contains(oldName) ||
       members.any((member) => !configPolicies(content).contains(member))) {
-    throw const FormatException('代理组成员无效');
+    throw const FormatException('Invalid proxy group members');
   }
   if (includeDirect != null) {
     members.removeWhere((member) => member == 'DIRECT');
     if (includeDirect) members.insert(0, 'DIRECT');
     if (members.isEmpty && filter == null) {
-      throw const FormatException('代理组没有节点，请调整正则表达式或选择 DIRECT');
+      throw const FormatException('Proxy group has no nodes; adjust the regex or select DIRECT');
     }
   }
   final updated = {...group, 'name': name, 'proxies': members};
@@ -257,10 +257,10 @@ String updateConfigGroup(String content, Map<String, dynamic> group,
 
 String deleteConfigGroup(String content, String name) {
   if (isProtectedConfigGroup(name)) {
-    throw const FormatException('国内和国外代理组不可删除');
+    throw const FormatException('Domestic and Foreign proxy groups cannot be deleted');
   }
   if (readProxyChainGroups(content).containsKey(name)) {
-    throw const FormatException('链路代理组由链式节点管理');
+    throw const FormatException('Chain groups are managed by Proxy chains');
   }
   final config = loadYaml(content) as YamlMap;
   final groups = configGroups(content);
@@ -274,7 +274,7 @@ String deleteConfigGroup(String content, String name) {
         ...configRules(content),
         for (final rules in subRules.values) ...List<String>.from(rules as List)
       ].any((rule) => replaceRulePolicy(rule, name, '__deleted__') != rule);
-  if (referenced) throw const FormatException('此组仍被规则、其他代理组或链路引用，请先修改引用');
+  if (referenced) throw const FormatException('This group is still referenced by rules, groups or chains; update those references first');
   final editor = YamlEditor(content)
     ..update(['proxy-groups'],
         groups.where((group) => group['name'] != name).toList());
@@ -294,7 +294,7 @@ String orderRuntimeMetadata(String content, {String? profileContent}) {
   final lines =
       runtimeProxyChainComments(content, profileContent: source).split('\n');
   String? action(String line) {
-    if (line.startsWith('# Mclash 手动节点: ')) return 'addNode';
+    if (line.startsWith('# Mclash manual-nodes: ')) return 'addNode';
     if (line.startsWith('# Mclash HTTP/WS Host: ')) return 'host';
     if (line.startsWith(frontChainPrefix)) return 'prependProxy';
     if (line.startsWith(backChainPrefix)) return 'prependProxy';
@@ -304,8 +304,8 @@ String orderRuntimeMetadata(String content, {String? profileContent}) {
           ? 'prependProxy'
           : 'prependProxy';
     }
-    if (line.startsWith('# Mclash 节点链路: ')) return 'prependProxy';
-    if (line.startsWith('# Mclash 链路代理组: ')) return 'groups';
+    if (line.startsWith('# Mclash node-chains: ')) return 'prependProxy';
+    if (line.startsWith('# Mclash chain-groups: ')) return 'groups';
     if (line.startsWith(groupFilterPrefix)) return 'groups';
     return null;
   }

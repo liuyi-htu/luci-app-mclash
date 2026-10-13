@@ -1,52 +1,52 @@
-# Mclash 使用说明
+# Mclash user guide
 
-安装、固件编译、SDK 打包及页面截图见 [项目首页](../README.md)。LuCI 入口为 **服务 → Mclash**，配置文件为 `/etc/mclash/config.yaml`，Mihomo 工作目录为 `/etc/mclash`。
+See the [project README](../README.md) for installation and builds. Open **Services → Mclash**. Configuration is stored at `/etc/mclash/config.yaml`, with Mihomo's working directory at `/etc/mclash`.
 
-## 配置与面板
+## Configuration and dashboard
 
-基础设置包含启停卡片、代理面板、连通性检测及接管参数。检测默认使用浏览器，可在 OpenAI 卡片右上角切换为路由器；出口 IP 与地区通过外部接口查询，延迟为目标站点 HTTPS 请求耗时。设备自身的代理或 VPN 可能影响检测出口。
+Basic settings provides service controls, dashboard access, browser/router latency probes and capture settings. Probes measure HTTPS request time to Telegram, OpenAI, Baidu, Google, YouTube and GitHub; they do not query exit IPs.
 
-节点与规则包含机场订阅，以及添加节点、修改 Host、前置链式节点、代理组、规则集和规则管理。订阅更新保留这些覆写设置。修改配置前须停止服务，保存校验失败时保留原文件。运行配置仅供查看，进入页面自动刷新。
+Nodes and rules manages subscriptions, manual nodes, Host overrides, pre-proxy chains, groups, rule providers, rules and DNS. Each subscription has a name and independent update. Stop the service before editing configuration. Invalid saves retain the existing file. Runtime configuration is read-only and refreshes when opened.
 
-默认控制接口为 `0.0.0.0:9097`，可在基础设置修改地址与端口。默认不设置控制密钥，服务限制控制端口仅可从本机和指定局域网设备访问。代理面板通过路由器提供，在新窗口打开。
+The default controller is `0.0.0.0:9097`. Change its address and port under Basic settings. No secret is set by default; the service limits controller access to the router and selected LAN interfaces. Zashboard is hosted on the router and opens separately.
 
-## 接管与 DNS
+## Capture and DNS
 
-默认关闭自动接管。选择接管方式、多选局域网设备（通常为 `br-lan`），设置代理范围后保存并启动服务。
+Automatic capture is disabled by default. Select TUN or TProxy, LAN interfaces (usually `br-lan`) and proxy scope, then save and start.
 
-- **TUN**：通过策略路由将所选 TCP／UDP 流量送入虚拟网卡，可选 mixed、system、gvisor 协议栈。
-- **TProxy**：通过 nftables 与策略路由接管所选 TCP／UDP 流量。
-- **代理范围**：控制局域网设备、路由器本机及 IPv6。关闭局域网设备代理时，访问控制指定的 IP／范围仍可代理，其余设备不代理。
-- 局域网设备之间的流量默认直连，核心出站绕过接管以避免回环。
+- TUN routes selected TCP/UDP traffic through a virtual interface; stacks: mixed, system, gvisor.
+- TProxy captures selected TCP/UDP traffic using nftables and policy routing.
+- Proxy scope controls LAN devices, router traffic and IPv6. With Proxy LAN devices disabled, only access-control IPs/ranges are captured; other LAN devices connect directly.
+- Traffic between LAN devices bypasses capture. Core egress bypass prevents routing loops.
 
-默认配置使用 fake-ip、DoH、嗅探及国内／国外策略组，两组初始只有 DIRECT。DNS 监听 `1053`，混合端口为 `7890`。启用 TUN／TProxy 后，所选范围的普通 DNS 请求交给 Mihomo，局域网内 DNS 互访保持直连。
+Defaults use fake-ip, DoH, sniffing and Domestic/Foreign groups, initially containing DIRECT. DNS listens on `1053`, the mixed port is `7890`. TUN/TProxy sends ordinary DNS requests in the selected scope to Mihomo; LAN-to-LAN DNS remains direct.
 
-需要 firewall4／nftables。路由表 `166`、策略路由优先级 `1166`、标记 `0x166`／`0x167` 和 TUN 设备名 `Mclash` 为本插件使用。启动前检查冲突，核心就绪后安装规则，失败回滚；停止或核心退出时清理规则。
+DNS management edits resolver settings. `enable`, `listen` and `ipv6` are controlled by capture/proxy-scope settings and are hidden from the DNS editor, then preserved on save.
 
-## 内核更新
+firewall4/nftables are required. Route table `166`, policy preference `1166`, marks `0x166`/`0x167` and the TUN name `Mclash` are reserved by the application. Conflicts are checked before startup. Rules are applied after core readiness and removed on stop or exit.
 
-支持检查官方稳定版本、在线更新和上传本地 ELF／gzip 内核。新内核校验配置后才替换，失败保留旧内核。
+## Core updates
 
-运行中更新先下载与校验，在替换阶段停止服务，成功后恢复运行；停止时更新后保持停止。替换或启动失败时回滚。启动／退出过渡期间不替换内核。
+Check official stable releases, update online, or upload a local ELF/gzip core. Validation precedes replacement. An active service resumes after a successful update; a stopped service remains stopped. Replacement/startup failures restore the previous core. Updates are blocked during service transitions.
 
-## 日志
+## Logs
 
-| 页面名称 | 文件路径 | 内容 |
+| UI name | File | Content |
 | --- | --- | --- |
-| `mclash.log` | `/var/log/mclash.log` | 服务启停、配置校验、接管和路由摘要 |
-| `mihomo.log` | `/var/log/mihomo.log` | 内核日志，默认 `error` 等级 |
-| `update.log` | `/var/log/mclash-update.log` | 内核检查、下载、校验与替换 |
+| mclash.log | `/var/log/mclash.log` | Lifecycle results, proxy scope, access control, firewall/routes and failures |
+| mihomo.log | `/var/log/mihomo.log` | Core logs; default level: error |
+| update.log | `/var/log/mclash-update.log` | Core download, validation, replacement and rollback |
 
-每个文件最大 `512 KiB`，超限保留最近约 `256 KiB`。页面查看服务日志最近 300 行、内核与更新日志最近 100 行，可刷新或清空当前文件。
+Each file is limited to 512 KiB; trimming keeps approximately the newest 256 KiB. The UI shows the last 300 service lines or 100 core/update lines. Startup/stop sections end with a separator. Stored logs use English; the optional Simplified Chinese package translates UI labels and supported service/update log messages in the viewer. Built-in group names and references switch to Chinese when the package is installed; restart the service to refresh the dashboard groups.
 
-## 卸载
+## Remove
 
 ```sh
 /etc/init.d/mclash stop
 /etc/init.d/mclash disable
 opkg remove luci-app-mclash
-# APK 设备使用 apk del luci-app-mclash
+# APK firmware: apk del luci-app-mclash
 /etc/init.d/rpcd restart
 ```
 
-配置按设备软件包管理器的配置文件保留策略处理，独立安装的 Mihomo 与数据资源由用户管理。
+Configuration retention follows your package manager. Separately installed Mihomo and resource files remain user-managed.

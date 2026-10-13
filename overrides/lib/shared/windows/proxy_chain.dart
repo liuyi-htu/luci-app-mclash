@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
-const _chainPrefix = '# Mclash 节点链路: ';
-const _globalPrefix = '# Mclash 全局链路: ';
-const _groupPrefix = '# Mclash 链路代理组: ';
+const _chainPrefix = '# Mclash node-chains: ';
+const _globalPrefix = '# Mclash global-chain: ';
+const _groupPrefix = '# Mclash chain-groups: ';
 
 List<String> savedProxyNodeNames(String content) {
   final nodes = (loadYaml(content) as YamlMap)['proxies'] as List? ?? [];
@@ -63,21 +63,21 @@ List<String> readProxyChainTargets(String content, {required bool prepend}) {
 String setGlobalProxyChain(String content, List<String> selected,
     {required bool prepend, required List<String> targets}) {
   if (!selected.every(savedProxyNodeNames(content).contains)) {
-    throw const FormatException('请重新选择已保存的代理节点');
+    throw const FormatException('Select saved proxy nodes again');
   }
   final roles = readGlobalProxyChains(content);
   final key = prepend ? 'front' : 'back';
   final opposite = roles[prepend ? 'back' : 'front'] ?? [];
   if (selected.any(opposite.contains)) {
-    throw const FormatException('前置和后置不能选择同一个节点');
+    throw const FormatException('Front and back nodes must be different');
   }
   if (selected.isNotEmpty && targets.isEmpty) {
-    throw const FormatException('请至少选择一个作用节点');
+    throw const FormatException('Select at least one target node');
   }
   if (!targets.every(savedProxyNodeNames(content).contains) ||
       targets
           .any((name) => selected.contains(name) || opposite.contains(name))) {
-    throw const FormatException('作用节点不能包含前置或后置节点');
+    throw const FormatException('Target nodes must not include front or back nodes');
   }
   final oppositeKey = prepend ? 'back' : 'front';
   roles['${oppositeKey}Targets'] =
@@ -99,7 +99,7 @@ String _applyGlobalProxyChains(
       .where((name) => !front.contains(name) && !back.contains(name))
       .toList();
   if (normal.isEmpty) {
-    throw const FormatException('请保留至少一个节点作为作用对象');
+    throw const FormatException('Keep at least one target node');
   }
   final oldChains = readProxyChains(previous);
   final oldGroups = readProxyChainGroups(previous);
@@ -155,7 +155,7 @@ void _validateChains(Map<String, List<String>> graph) {
   final active = <String>{};
   final complete = <String>{};
   void visit(String name) {
-    if (active.contains(name)) throw const FormatException('代理链路形成循环，请选择其他节点');
+    if (active.contains(name)) throw const FormatException('Proxy chain forms a cycle; select other nodes');
     if (!complete.add(name)) return;
     active.add(name);
     for (final child in graph[name] ?? <String>[]) {
@@ -235,13 +235,13 @@ String setProxyChains(String content, List<String> current, List<String> other,
   final currentNames = current.toSet();
   final otherNames = other.toSet();
   if (currentNames.isEmpty || otherNames.isEmpty) {
-    throw const FormatException('请在两侧分别选择至少一个节点');
+    throw const FormatException('Select at least one node on each side');
   }
   if (currentNames.intersection(otherNames).isNotEmpty) {
-    throw const FormatException('入口和出口不能选择同一个节点');
+    throw const FormatException('Entry and exit nodes must be different');
   }
   if (![...currentNames, ...otherNames].every(names.contains)) {
-    throw const FormatException('所选节点已不存在，请重新选择');
+    throw const FormatException('Selected node no longer exists; select it again');
   }
   final targets = prepend ? currentNames : otherNames;
   final upstreams = (prepend ? otherNames : currentNames).toList();
@@ -255,7 +255,7 @@ String setProxyChains(String content, List<String> current, List<String> other,
       for (final group in config['proxy-groups'] as List? ?? [])
         group['name'] as String
     };
-    final base = '${prepend ? '🔗 链式节点' : '🔗 后置入口'}$groupSuffix';
+    final base = '${prepend ? '🔗 Proxy chain' : '🔗 Back-chain entry'}$groupSuffix';
     upstream = base;
     var index = 2;
     while (used.contains(upstream)) {
@@ -322,8 +322,8 @@ String removeProxyChainNode(String content, String name) {
   return roles.isEmpty ? result : '$_globalPrefix${jsonEncode(roles)}\n$result';
 }
 
-const chainSetsPrefix = '# Mclash 链路设置: ';
-const numberedChainPrefix = '# Mclash 节点链路 ';
+const chainSetsPrefix = '# Mclash chain-settings: ';
+const numberedChainPrefix = '# Mclash node-chain ';
 
 Map<String, Map<String, List<String>>> readProxyChainSets(String content) {
   final saved =
@@ -362,13 +362,13 @@ String setProxyChainSet(String content, String id, List<String> selected,
     {required bool prepend, required List<String> targets}) {
   final names = savedProxyNodeNames(content);
   if (!selected.every(names.contains) || !targets.every(names.contains)) {
-    throw const FormatException('所选节点已不存在，请重新选择');
+    throw const FormatException('Selected node no longer exists; select it again');
   }
   if (selected.isNotEmpty && targets.isEmpty) {
-    throw const FormatException('请至少选择一个作用节点');
+    throw const FormatException('Select at least one target node');
   }
   if (targets.any(selected.contains)) {
-    throw const FormatException('作用节点不能包含前置或后置节点');
+    throw const FormatException('Target nodes must not include front or back nodes');
   }
   final sets = readProxyChainSets(content);
   final opposite = sets.entries
@@ -376,7 +376,7 @@ String setProxyChainSet(String content, String id, List<String> selected,
       .expand((entry) => entry.value[prepend ? 'back' : 'front'] ?? <String>[])
       .toSet();
   if (selected.any(opposite.contains)) {
-    throw const FormatException('前置和后置不能选择同一个节点');
+    throw const FormatException('Front and back nodes must be different');
   }
   final role = prepend ? 'front' : 'back';
   if (selected.isEmpty) {
@@ -448,14 +448,14 @@ String _applyProxyChainSets(String content, String previous,
     };
     active[entry.key] = roles;
     final applied = _applyGlobalProxyChains(base, base, roles,
-        groupSuffix: ' (链路 ${entry.key})');
+        groupSuffix: ' (chain ${entry.key})');
     final ownGroups = readProxyChainGroups(applied);
     final ownChains = readProxyChains(applied);
     groups.addAll(ownGroups);
     final resolved = ownChains;
     for (final chain in resolved.entries) {
       if (chains.containsKey(chain.key) && chains[chain.key] != chain.value) {
-        throw FormatException('节点“${chain.key}”被多条链路连接到不同入口，请调整选择');
+        throw FormatException('Node ${chain.key} connects to different entries in multiple chains; adjust the selection');
       }
       chains[chain.key] = chain.value;
     }
@@ -469,13 +469,13 @@ String _applyProxyChainSets(String content, String previous,
   ].join()}$result';
 }
 
-const frontChainPrefix = '# Mclash 链式节点 ';
-const backChainPrefix = '# Mclash 后置链路 ';
+const frontChainPrefix = '# Mclash chain ';
+const backChainPrefix = '# Mclash back-chain ';
 
 String? proxyChainCommentPrefix(String line) {
   for (final prefix in [
     frontChainPrefix,
-    '# Mclash 前置链路 ',
+    '# Mclash front-chain ',
     backChainPrefix,
     numberedChainPrefix
   ]) {
@@ -502,7 +502,7 @@ String runtimeProxyChainComments(String content, {String? profileContent}) {
       visible.add('$direction${line.substring(prefix.length).trimRight()}');
     } else {
       visible.add(
-          line.replaceFirst('# Mclash 前置链路 ', frontChainPrefix).trimRight());
+          line.replaceFirst('# Mclash front-chain ', frontChainPrefix).trimRight());
     }
   }
   if (visible.isEmpty) {

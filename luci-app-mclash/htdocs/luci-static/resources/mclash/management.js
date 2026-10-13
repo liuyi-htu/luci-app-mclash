@@ -16,7 +16,7 @@ return baseclass.extend({
 				button.mclashBusy = true; button.disabled = true;
 				return Promise.resolve().then(function() {
 					return Promise.resolve(getRunning()).then(function(active) {
-						if (active) throw new Error(_('请先停止代理，再修改配置。'));
+						if (active) throw new Error(_('Stop the proxy before changing the configuration.', 'mclash'));
 						return fn();
 					});
 				}).catch(notice).finally(function() { button.mclashBusy = false; button.disabled = locked; });
@@ -25,7 +25,7 @@ return baseclass.extend({
 		}
 		function change(op, args) {
 			return Promise.resolve(getRunning()).then(function(active) {
-				if (active) throw new Error(_('请先停止代理，再修改配置。'));
+				if (active) throw new Error(_('Stop the proxy before changing the configuration.', 'mclash'));
 				return overrides.call(op, getContent(), args);
 			}).then(saveContent).then(function(message) { if (message) notifications.show(message, 'success'); return message; });
 		}
@@ -36,37 +36,37 @@ return baseclass.extend({
 		function input(value, placeholder) { return E('input', {'class': 'cbi-input-text', 'value': value || '', 'placeholder': placeholder || ''}); }
 		function area(value, rows) { var n = E('textarea', {'class': 'cbi-input-textarea mclash-lines', 'rows': rows || 8, 'wrap': 'off', 'spellcheck': 'false'}); n.value = value || ''; return n; }
 		function select(values, value) {
-			return E('select', {'class': 'cbi-input-select'}, values.map(function(v) { return E('option', {'value': v, 'selected': v === value ? '' : null}, [v]); }));
+			return E('select', {'class': 'cbi-input-select'}, values.map(function(v) { return E('option', {'value': v, 'selected': v === value ? '' : null}, [_( {select:'Manual selection','url-test':'Automatic latency test',fallback:'Failover','load-balance':'Load balancing',file:'Local file',inline:'Inline',domain:'Domain',ipcidr:'IP subnet',classical:'Classical'}[v] || v, 'mclash')]); }));
 		}
 		function modal(title, fields, save, parent) {
 			ui.showModal(title, [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, fields), E('div', {'class': 'right'}, [
-				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': parent || ui.hideModal}, [_('取消')]), ' ',
-				action(_('保存'), function() { return save().then(function() { (parent || ui.hideModal)(); }); }, 'cbi-button-save')
+				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': parent || ui.hideModal}, [_('Cancel', 'mclash')]), ' ',
+				action(_('Save', 'mclash'), function() { return save().then(function() { (parent || ui.hideModal)(); }); }, 'cbi-button-save')
 			])]);
 		}
 		function listRows(items, edit, remove, reorder, label) {
 			return E('div', {}, items.map(function(name, index) {
 				return E('div', {'class': 'mclash-actions'}, [E('strong', {'style': 'flex:1;overflow-wrap:anywhere'}, [label ? label(name) : name]),
-					edit ? action(_('编辑'), function() { return edit(name); }) : '',
+					edit ? action(_('Edit', 'mclash'), function() { return edit(name); }) : '',
 					reorder && index > 0 ? action('↑', function() { var order = items.slice(); order[index] = order[index - 1]; order[index - 1] = name; return reorder(order).then(ui.hideModal); }) : '',
 					reorder && index < items.length - 1 ? action('↓', function() { var order = items.slice(); order[index] = order[index + 1]; order[index + 1] = name; return reorder(order).then(ui.hideModal); }) : '',
-					remove ? action(_('删除'), function() { return remove(name).then(ui.hideModal); }, 'cbi-button-negative') : ''
+					remove ? action(_('Delete', 'mclash'), function() { return remove(name).then(ui.hideModal); }, 'cbi-button-negative') : ''
 				]);
 			}));
 		}
 		function openNodes() {
 			var s = summary(), link = area('', 4);
-			ui.showModal(_('添加节点'), [
+			ui.showModal(_('Add node', 'mclash'), [
 				listRows(s.manualNodes, null, function(name) { return change('deleteNode', {name: name}); }, function(names) { return change('reorderNodes', {names: names}); }),
-				field(_('节点链接'), link),
+				field(_('Node URL', 'mclash'), link),
 				E('p', {}, ['VMess / VLESS / Trojan / SS / Hysteria2 / TUIC / AnyTLS / SOCKS / HTTP']),
-				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
-					action(_('添加'), function() { return change('addNode', {link: link.value.trim()}).then(ui.hideModal); }, 'cbi-button-save')])
+				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Cancel', 'mclash')]), ' ',
+					action(_('Add', 'mclash'), function() { return change('addNode', {link: link.value.trim()}).then(ui.hideModal); }, 'cbi-button-save')])
 			]);
 		}
 		function openHost() {
 			var host = input(summary().host);
-			modal(_('修改 Host'), [field(_('VMess HTTP / WS Host'), host)], function() { return change('host', {host: host.value.trim()}); });
+			modal(_('Edit Host', 'mclash'), [field(_('VMess HTTP / WS Host', 'mclash'), host)], function() { return change('host', {host: host.value.trim()}); });
 		}
 		function orderedChoices(names, selected, onChange, sortable) {
 			var order = selected.concat(names.filter(function(n) { return selected.indexOf(n) < 0; }));
@@ -97,20 +97,20 @@ return baseclass.extend({
 			var targets = orderedChoices(s.nodes, roles.frontTargets || roles.backTargets || [], function() { selected.exclude(targets.value()); });
 			targets.exclude(selected.value());
 			selected.exclude(targets.value());
-			modal(_('链路 ') + id, [field(_('前置节点（按连接顺序）'), selected.element), field(_('作用节点'), targets.element)], function() {
+			modal(_('Chain ', 'mclash') + id, [field(_('Pre-proxy nodes (in connection order)', 'mclash'), selected.element), field(_('Target nodes', 'mclash'), targets.element)], function() {
 				return change('chain', {id: id, selected: selected.value(), targets: targets.value(), prepend: true});
 			}, openChains);
 		}
 		function openChains() {
 			var s = summary();
-			ui.showModal(_('链式节点'), [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, [listRows(Object.keys(s.chains), editChain, function(id) { return change('chain', {id: id, selected: [], targets: [], prepend: !s.chains[id].back}); })]),
-				E('div', {'class': 'mclash-actions'}, [action(_('新增链路'), function() { editChain(s.nextChainId); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
+			ui.showModal(_('Proxy chains', 'mclash'), [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, [listRows(Object.keys(s.chains), editChain, function(id) { return change('chain', {id: id, selected: [], targets: [], prepend: !s.chains[id].back}); })]),
+				E('div', {'class': 'mclash-actions'}, [action(_('Add chain', 'mclash'), function() { editChain(s.nextChainId); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Close', 'mclash')])])]);
 		}
 		function editGroup(oldName) {
 			var s = summary(), group = s.groups.find(function(g) { return g.name === oldName; }) || {type: 'select'};
 			var name = input(oldName), type = select(['select', 'url-test', 'fallback', 'load-balance'], group.type);
-			var filter = input(s.filters[oldName] || '', _('留空匹配全部节点'));
-			var direct = E('input', {'type': 'checkbox', 'checked': (s.direct[oldName] != null ? s.direct[oldName] : (group.proxies || []).indexOf('DIRECT') >= 0 || oldName === '🚀 国内') ? '' : null});
+			var filter = input(s.filters[oldName] || '', _('Leave empty to match all nodes', 'mclash'));
+			var direct = E('input', {'type': 'checkbox', 'checked': (s.direct[oldName] != null ? s.direct[oldName] : (group.proxies || []).indexOf('DIRECT') >= 0 || (oldName === '🚀 Domestic' || oldName === '🚀 ' + _('Domestic', 'mclash'))) ? '' : null});
 			var url = input(group.url || ''), interval = input(group.interval == null ? '' : String(group.interval));
 			function fillTestDefaults() {
 				if (type.value !== 'select') {
@@ -119,22 +119,22 @@ return baseclass.extend({
 				}
 			}
 			type.addEventListener('change', fillTestDefaults); fillTestDefaults();
-			if (oldName === '🚀 国内' || oldName === '🌍 国外') name.disabled = true;
-			modal(_('代理组'), [field(_('名称'), name), field(_('类型'), type), field(_('节点匹配正则'), filter), field(_('包含 DIRECT'), direct), field(_('测速地址'), url), field(_('测速间隔（秒）'), interval)], function() {
+			if (oldName === '🚀 Domestic' || oldName === '🌍 Foreign' || oldName === '🚀 ' + _('Domestic', 'mclash') || oldName === '🌍 ' + _('Foreign', 'mclash')) name.disabled = true;
+			modal(_('Proxy group', 'mclash'), [field(_('Name', 'mclash'), name), field(_('Type', 'mclash'), type), field(_('Node matching regex', 'mclash'), filter), field(_('Include DIRECT', 'mclash'), direct), field(_('Test URL', 'mclash'), url), field(_('Test interval (seconds)', 'mclash'), interval)], function() {
 				fillTestDefaults();
 				var next = Object.assign({}, group, {name: name.value.trim(), type: type.value});
 				if (url.value.trim()) next.url = url.value.trim(); else delete next.url;
-				if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('间隔须为非负整数')); next.interval = n; } else delete next.interval;
+				if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('The interval must be a non-negative integer', 'mclash')); next.interval = n; } else delete next.interval;
 				return change('group', {group: next, oldName: oldName || null, filter: filter.value, includeDirect: direct.checked});
 			}, openGroups);
 		}
 		function openGroups() {
 			var s = summary(), names = s.groups.map(function(g) { return g.name; });
-			ui.showModal(_('代理组管理'), [listRows(names, function(name) {
-				if (s.managedGroups.indexOf(name) >= 0) throw new Error(_('链路代理组由链式节点管理'));
+			ui.showModal(_('Proxy group management', 'mclash'), [listRows(names, function(name) {
+				if (s.managedGroups.indexOf(name) >= 0) throw new Error(_('Chain groups are managed by Proxy chains', 'mclash'));
 				editGroup(name);
-			}, function(name) { return change('deleteGroup', {name: name}); }, function(names) { return change('reorderGroups', {names: names}); }),
-				E('div', {'class': 'mclash-actions'}, [action(_('新增代理组'), function() { editGroup(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
+			}, function(name) { return change('deleteGroup', {name: name}); }, function(names) { return change('reorderGroups', {names: names}); }, function(name) { return name === '🚀 Domestic' ? '🚀 ' + _('Domestic', 'mclash') : name === '🌍 Foreign' ? '🌍 ' + _('Foreign', 'mclash') : name; }),
+				E('div', {'class': 'mclash-actions'}, [action(_('Add proxy group', 'mclash'), function() { editGroup(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Close', 'mclash')])])]);
 		}
 		function editProvider(oldName) {
 			var provider = summary().providers[oldName] || {type: 'http', behavior: 'domain', format: 'yaml', interval: 86400};
@@ -142,12 +142,12 @@ return baseclass.extend({
 			var behavior = select(['domain', 'ipcidr', 'classical'], provider.behavior), format = select(['yaml', 'text', 'mrs'], provider.format || 'yaml');
 			var url = input(provider.url), path = input(provider.path), interval = input(provider.interval == null ? '' : String(provider.interval));
 			var payload = area((provider.payload || []).join('\n'));
-			modal(_('规则集'), [field(_('名称'), name), field(_('来源'), type), field(_('行为'), behavior), field(_('格式'), format), field(_('下载链接'), url), field(_('文件路径'), path), field(_('更新间隔（秒）'), interval), field(_('内嵌规则（每行一条）'), payload)], function() {
+			modal(_('Rule provider', 'mclash'), [field(_('Name', 'mclash'), name), field(_('Source', 'mclash'), type), field(_('Behavior', 'mclash'), behavior), field(_('Format', 'mclash'), format), field(_('Download URL', 'mclash'), url), field(_('File path', 'mclash'), path), field(_('Update interval (seconds)', 'mclash'), interval), field(_('Inline rules (one per line)', 'mclash'), payload)], function() {
 				var next = Object.assign({}, provider, {type: type.value, behavior: behavior.value, format: format.value});
 				delete next.url; delete next.payload; delete next.interval; delete next.path;
 				if (type.value === 'http') {
 					next.url = url.value.trim();
-					if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('间隔须为非负整数')); next.interval = n; }
+					if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('The interval must be a non-negative integer', 'mclash')); next.interval = n; }
 				}
 				if (type.value !== 'inline' && path.value.trim()) next.path = path.value.trim();
 				if (type.value === 'inline') next.payload = payload.value.split(/\r?\n/).map(function(line) { return line.trim(); }).filter(Boolean);
@@ -155,34 +155,34 @@ return baseclass.extend({
 			}, openProviders);
 		}
 		function openProviders() {
-			ui.showModal(_('规则集管理'), [listRows(Object.keys(summary().providers), editProvider, function(name) { return change('deleteProvider', {name: name}); }),
-				E('div', {'class': 'mclash-actions'}, [action(_('新增规则集'), function() { editProvider(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
+			ui.showModal(_('Rule provider management', 'mclash'), [listRows(Object.keys(summary().providers), editProvider, function(name) { return change('deleteProvider', {name: name}); }),
+				E('div', {'class': 'mclash-actions'}, [action(_('Add rule provider', 'mclash'), function() { editProvider(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Close', 'mclash')])])]);
 		}
 		function editRule(index) {
 			var rules = summary().rules.slice(), rule = input(index == null ? '' : rules[index]);
-			modal(_('规则'), [field(_('规则'), rule), E('p', {}, [_('可用策略：') + summary().policies.join('、')])], function() {
+			modal(_('Rule', 'mclash'), [field(_('Rule', 'mclash'), rule), E('p', {}, [_('Available policies: ', 'mclash') + summary().policies.join(', ')])], function() {
 				var value = rule.value.trim();
-				if (!value || /[\r\n]/.test(value)) throw new Error(_('请填写一条规则'));
+				if (!value || /[\r\n]/.test(value)) throw new Error(_('Enter one rule', 'mclash'));
 				if (index == null) rules.push(value); else rules[index] = value;
 				return change('rules', {rules: rules});
 			}, openRules);
 		}
 		function openRules() {
 			var rules = summary().rules, indices = rules.map(function(rule, index) { return String(index); });
-			ui.showModal(_('规则管理'), [listRows(indices, function(index) { editRule(Number(index)); }, function(index) {
+			ui.showModal(_('Rule management', 'mclash'), [listRows(indices, function(index) { editRule(Number(index)); }, function(index) {
 				return change('rules', {rules: rules.filter(function(rule, i) { return i !== Number(index); })});
 			}, function(order) { return change('rules', {rules: order.map(function(index) { return rules[Number(index)]; })}); }, function(index) { return (Number(index) + 1) + '-' + rules[Number(index)]; }),
-				E('div', {'class': 'mclash-actions'}, [action(_('新增规则'), function() { editRule(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
+				E('div', {'class': 'mclash-actions'}, [action(_('Add rule', 'mclash'), function() { editRule(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Close', 'mclash')])])]);
 		}
 		function openDNS() {
 			var dns = area(summary().dnsYaml || '{}\n', 16);
-			modal(_('DNS 管理'), [field(_('DNS 配置（YAML）'), dns)], function() {
+			modal(_('DNS management', 'mclash'), [field(_('DNS configuration (YAML)', 'mclash'), dns)], function() {
 				return change('dns', {yaml: dns.value});
 			});
 		}
 		var actions = {
-			addNode: [_('添加节点'), openNodes], host: [_('修改 Host'), openHost], prependProxy: [_('链式节点'), openChains],
-			groups: [_('代理组管理'), openGroups], ruleProviders: [_('规则集管理'), openProviders], rules: [_('规则管理'), openRules], dns: [_('DNS 管理'), openDNS]
+			addNode: [_('Add node', 'mclash'), openNodes], host: [_('Edit Host', 'mclash'), openHost], prependProxy: [_('Proxy chains', 'mclash'), openChains],
+			groups: [_('Proxy group management', 'mclash'), openGroups], ruleProviders: [_('Rule provider management', 'mclash'), openProviders], rules: [_('Rule management', 'mclash'), openRules], dns: [_('DNS management', 'mclash'), openDNS]
 		};
 		var menu = E('div', {'class': 'mclash-rule-groups'});
 		var icons = {addNode: '+', host: '⌘', prependProxy: '⇄', groups: '◈', ruleProviders: '▤', rules: '≡', dns: '⌕'};
@@ -193,8 +193,8 @@ return baseclass.extend({
 			order = order.slice();
 			if (order.indexOf('dns') < 0) order.push('dns');
 			[
-				{key:'nodes',title:_('节点管理'),keys:['addNode','host','prependProxy']},
-				{key:'rules',title:_('策略与规则'),keys:['groups','ruleProviders','rules','dns']}
+				{key:'nodes',title:_('Node management', 'mclash'),keys:['addNode','host','prependProxy']},
+				{key:'rules',title:_('Policies and rules', 'mclash'),keys:['groups','ruleProviders','rules','dns']}
 			].forEach(function(group) {
 				var tiles = group.keys.filter(function(key) { return order.indexOf(key) >= 0; }).map(function(key) {
 					var tile = action(actions[key][0], actions[key][1], 'mclash-rule-tile');
@@ -202,7 +202,7 @@ return baseclass.extend({
 					tile.textContent = '';
 					tile.appendChild(E('span', {'class': 'mclash-rule-icon', 'aria-hidden': 'true'}, [icons[key]]));
 					tile.appendChild(E('span', {'class': 'mclash-rule-label'}, [actions[key][0]]));
-					tile.appendChild(E('span', {'class': 'btn cbi-button cbi-button-action mclash-rule-arrow', 'aria-hidden': 'true'}, ['›']));
+					tile.appendChild(E('span', {'class': 'btn cbi-button cbi-button-action mclash-rule-arrow', 'aria-hidden': 'true', 'data-prefix': _('Configure ', 'mclash')}, ['›']));
 					return tile;
 				});
 				if (tiles.length) menu.appendChild(E('section',{'class':'mclash-settings-card','data-settings-group':group.key},[E('h3',{'class':'mclash-category-title'},[group.title]),E('div',{'class':'mclash-rule-grid'},tiles)]));

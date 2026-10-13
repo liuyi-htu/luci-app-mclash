@@ -20,12 +20,12 @@ assert.match(protectedDNS,/ipv6: true/);
 assert.throws(()=>api.call('dns',dnsBase,{yaml:'[1, 2]'}),/DNS/);
 assert.throws(()=>api.call('dns',dnsBase,{yaml:'enable: ['}));
 let config = `proxies:
-  - {name: 上海-ws, type: vmess, server: a.example, port: 443, uuid: 00000000-0000-4000-8000-000000000001, network: ws, ws-opts: {headers: {host: old.example, X-Test: keep}}, tls: true}
+  - {name: Shanghai-ws, type: vmess, server: a.example, port: 443, uuid: 00000000-0000-4000-8000-000000000001, network: ws, ws-opts: {headers: {host: old.example, X-Test: keep}}, tls: true}
   - {name: KR-http, type: vmess, server: b.example, port: 80, uuid: 00000000-0000-4000-8000-000000000002, network: http, http-opts: {headers: {HOST: old.example}}}
   - {name: KR-vless, type: vless, server: c.example, port: 443, uuid: 00000000-0000-4000-8000-000000000003, network: ws, ws-opts: {headers: {Host: unchanged.example}}, tls: true}
 proxy-groups:
-  - {name: 🚀 国内, type: select, proxies: [DIRECT, 上海-ws]}
-  - {name: 🌍 国外, type: select, proxies: [KR-http, KR-vless]}
+  - {name: 🚀 Domestic, type: select, proxies: [DIRECT, Shanghai-ws]}
+  - {name: 🌍 Foreign, type: select, proxies: [KR-http, KR-vless]}
   - {name: custom, type: select, proxies: [DIRECT]}
 rule-providers:
   example: {type: inline, behavior: domain, payload: [+.example.org]}
@@ -47,7 +47,7 @@ assert.throws(() => api.call('host', config, {host: 'https://invalid.example/pat
 call('group', {oldName: 'custom', group: {name: 'custom-renamed', type: 'select'}, filter: '(?i)kr', includeDirect: false});
 assert.ok(api.call('summary', config).groups.find(g => g.name === 'custom-renamed').proxies.length === 2);
 assert.equal((config.match(/RULE-SET,example,custom-renamed/g) || []).length, 2);
-assert.throws(() => api.call('deleteGroup', config, {name: '🚀 国内'}));
+assert.throws(() => api.call('deleteGroup', config, {name: '🚀 Domestic'}));
 assert.throws(() => api.call('deleteGroup', config, {name: 'custom-renamed'}));
 assert.throws(() => api.call('group', config, {oldName: 'custom-renamed', group: {name: 'custom-renamed', type: 'select'}, filter: '^absent$', includeDirect: false}));
 call('provider', {oldName: 'example', name: 'renamed-set', provider: {type: 'inline', behavior: 'domain', payload: ['+.new.example']}});
@@ -56,8 +56,8 @@ assert.throws(() => api.call('deleteProvider', config, {name: 'renamed-set'}));
 assert.throws(() => api.call('provider', config, {name: 'bad', provider: {type: 'http', behavior: 'classical', format: 'mrs', url: 'https://example.org/rules'}}));
 call('addNode', {link: 'vless://00000000-0000-4000-8000-000000000004@manual.example:443?security=tls&type=ws&host=manual-host.example#manual'});
 assert.equal(api.call('summary', config).manualNodes[0], 'manual');
-call('chain', {id: '1', prepend: true, selected: ['上海-ws', 'KR-http'], targets: ['KR-vless']});
-assert.deepEqual(api.call('summary', config).chains['1'].front, ['上海-ws', 'KR-http']);
+call('chain', {id: '1', prepend: true, selected: ['Shanghai-ws', 'KR-http'], targets: ['KR-vless']});
+assert.deepEqual(api.call('summary', config).chains['1'].front, ['Shanghai-ws', 'KR-http']);
 assert.match(config, /dialer-proxy: KR-http/);
 assert.throws(() => api.call('chain', config, {id: '2', prepend: true, selected: ['KR-vless'], targets: ['KR-vless']}));
 call('rules', {rules: ['DOMAIN,example.org,custom-renamed', 'MATCH,DIRECT']});
@@ -128,8 +128,8 @@ for (const profile of [defaultConfig, new DefaultTemplate().text]) {
  assert.match(profile, /nameserver-policy:/);
  assert.doesNotMatch(profile, /^secret:/m);
  const initial = api.call('summary', profile);
- assert.ok(initial.groups.some(g => g.name === '🚀 国内'));
- assert.ok(initial.groups.some(g => g.name === '🌍 国外'));
+ assert.ok(initial.groups.some(g => g.name === '🚀 Domestic'));
+ assert.ok(initial.groups.some(g => g.name === '🌍 Foreign'));
  for (const mode of ['tun', 'tproxy']) {
   const captured = api.call('network', profile, {...network, mode, ipv6:false});
   assert.match(captured, /enhanced-mode: fake-ip/);
@@ -148,13 +148,13 @@ rules: [MATCH,DIRECT]
 dns:
   enable: true
   nameserver:
-    - https://1.1.1.1/dns-query#🌍 国外
+    - https://1.1.1.1/dns-query#🌍 Foreign
   nameserver-policy:
     "geosite:cn": [https://dns.alidns.com/dns-query]
 `;
 for (const mode of ['tun', 'tproxy']) {
  const result = api.call('network', dnsProfile, {...network,mode});
- assert.ok(result.includes('    - https://1.1.1.1/dns-query#🌍 国外'));
+ assert.ok(result.includes('    - https://1.1.1.1/dns-query#🌍 Foreign'));
  assert.ok(!result.includes(String.raw`\/`), 'DNS URLs must not acquire invalid YAML slash escapes');
 }
 
@@ -169,7 +169,7 @@ for (const bad of ['192.168.10.999','192.168.10.0/33','192.168.10.150-192.168.10
  assert.throws(()=>api.call('network',dnsProfile,{...network,access:[bad]}));
 }
 
-const marker = '# Mclash OpenWrt 控制: true';
+const marker = '# Mclash OpenWrt controller: true';
 let repeated = marker+'\n'+marker+'\n'+customManaged;
 for (let attempt=0; attempt<4; attempt++) {
  repeated=api.call('subscription',repeated,{template:marker+'\n'+base,sources:[subscription],refresh:true});
@@ -204,3 +204,12 @@ assert.match(api.call('subscriptionSources', onlySecond, {count:1,prefixes:['2-'
 const allRemoved = api.call('subscription', onlySecond, {template:base,sources:[],prefixes:[],allowEmpty:true,refresh:true});
 assert.deepEqual(api.call('summary',allRemoved).nodes,['manual-airport']);
 console.log('Airport ordering and deletion keep stable node identities');
+
+// Existing profiles migrate metadata and built-in references without renaming custom nodes.
+const legacyProfile='# Mclash OpenWrt \u63a5\u7ba1: {"mode":"none","interfaces":["br-lan"],"lan":true,"router":true,"ipv6":false,"stack":"mixed"}\n# Mclash OpenWrt \u673a\u573a\u540d\u79f0: ["Custom"]\nproxies: [{name: Custom, type: http, server: example.org, port: 80}]\nproxy-groups: [{name: "🚀 \u56fd\u5185", type: select, proxies: [DIRECT, Custom]}, {name: "🌍 \u56fd\u5916", type: select, proxies: [DIRECT]}]\nrules: ["MATCH,🌍 \u56fd\u5916"]\n';
+assert.equal(api.call('summary',legacyProfile).groups[0].name,'🚀 Domestic');
+const migrated=api.call('dns',legacyProfile,{yaml:'nameserver: [1.1.1.1]'});
+assert.match(migrated,/# Mclash OpenWrt capture:/);
+assert.match(migrated,/# Mclash OpenWrt subscription-names: \["Custom"\]/);
+assert.match(migrated,/MATCH,🌍 Foreign/);
+assert.match(migrated,/name: Custom/);

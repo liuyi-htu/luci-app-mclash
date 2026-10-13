@@ -6,7 +6,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 import 'subscription_filter.dart';
 import 'subscription_host.dart';
 
-const manualNodePrefix = '# Mclash 手动节点: ';
+const manualNodePrefix = '# Mclash manual-nodes: ';
 
 List<String> readManualNodeNames(String content) {
   for (final line in content.split('\n')) {
@@ -43,7 +43,7 @@ String writeManualNodeNames(String content, List<String> names) {
 Map<String, dynamic> parseVmessLink(String link) {
   final value = link.trim().replaceAll(RegExp(r'\s'), '');
   if (!value.startsWith('vmess://') || value.length > 1024 * 1024) {
-    throw const FormatException('请输入一个 vmess:// 节点链接');
+    throw const FormatException('Enter a vmess:// node URL');
   }
   Map<String, dynamic> data;
   try {
@@ -52,14 +52,14 @@ Map<String, dynamic> parseVmessLink(String link) {
         jsonDecode(utf8.decode(base64.decode(base64.normalize(encoded))))
             as Map);
   } catch (_) {
-    throw const FormatException('VMess 链接的 Base64 或 JSON 格式无效');
+    throw const FormatException('Invalid VMess URL Base64 or JSON encoding');
   }
   String text(String key, [String fallback = '']) =>
       data[key]?.toString().trim() ?? fallback;
   int number(String key, {int? fallback}) {
     final raw = text(key);
     final result = raw.isEmpty ? fallback : int.tryParse(raw);
-    if (result == null) throw FormatException('VMess $key 必须是整数');
+    if (result == null) throw FormatException('VMess $key must be an integer');
     return result;
   }
 
@@ -68,21 +68,21 @@ Map<String, dynamic> parseVmessLink(String link) {
   final port = number('port');
   final alterId = number('aid', fallback: 0);
   if (server.isEmpty || id.isEmpty || port < 1 || port > 65535 || alterId < 0) {
-    throw const FormatException('VMess 地址、用户 ID、端口或 alterId 无效');
+    throw const FormatException('Invalid VMess address, user ID, port or alterId');
   }
   var network = text('net', 'tcp');
   if (network.isEmpty) network = 'tcp';
   final type = text('type', 'none');
   if (network == 'tcp' && type == 'http') network = 'http';
   if (!['tcp', 'http', 'ws', 'h2', 'grpc'].contains(network)) {
-    throw FormatException('暂不支持 VMess 传输类型：$network');
+    throw FormatException('Unsupported VMess transport type: $network');
   }
   if (network == 'tcp' && type.isNotEmpty && type != 'none') {
-    throw FormatException('暂不支持 TCP 伪装类型：$type');
+    throw FormatException('Unsupported TCP camouflage type: $type');
   }
   final tls = text('tls');
   if (tls.isNotEmpty && tls != 'none' && tls != 'tls') {
-    throw FormatException('暂不支持 VMess TLS 类型：$tls');
+    throw FormatException('Unsupported VMess TLS type: $tls');
   }
   final node = <String, dynamic>{
     'name': text('ps').isEmpty ? 'VMess $server:$port' : text('ps'),
@@ -142,7 +142,7 @@ String addNodeLink(String content, String link) {
       ['http', 'ws'].contains(node['network'])) {
     final host = hostOverride.trim();
     if (RegExp(r'[\s/\\?#]').hasMatch(host)) {
-      throw const FormatException('Host 不要包含 URL、路径或空白字符');
+      throw const FormatException('Host must not contain a URL, path or whitespace');
     }
     final key = node['network'] == 'http' ? 'http-opts' : 'ws-opts';
     final options = node[key] as Map<String, dynamic>;
@@ -219,7 +219,7 @@ String reorderManualNodes(String content, List<String> order) {
   if (order.length != names.length ||
       order.toSet().length != names.length ||
       !names.containsAll(order)) {
-    throw const FormatException('手动节点列表已变化，请重新打开页面');
+    throw const FormatException('Manual node list has changed; reopen the page');
   }
   final config = loadYaml(content) as YamlMap;
   final nodes = config['proxies'] as List? ?? [];
@@ -277,7 +277,7 @@ String restoreManualNodes(String content, String? previous) {
 
 String deleteManualNode(String content, String name) {
   if (!savedManualNodeNames(content).contains(name)) {
-    throw const FormatException('只能删除手动添加的节点');
+    throw const FormatException('Only manually added nodes can be deleted');
   }
   final config = loadYaml(content) as YamlMap;
   final nodes = [

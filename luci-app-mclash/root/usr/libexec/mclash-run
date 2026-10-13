@@ -33,14 +33,14 @@ cleanup() {
 	fi
 	[ -z "$pipe" ] || rm -f "$pipe"
 	rm -f "$STATE/core.pid"
-	if [ "$cleanup_failed" = 0 ]; then service_log '服务已停止'; else service_log '停止失败：接管或控制接口清理不完整'; fi
+	if [ "$cleanup_failed" = 0 ]; then service_log 'Service stopped'; else service_log 'Stop failed: capture or controller cleanup is incomplete'; fi
 	"$LOG" separator-service || true
 }
 trap cleanup EXIT
 trap 'exit 0' HUP INT TERM
 mkdir -p "$STATE"
-"$NETWORK" check || { service_log '接管环境检查失败，请查看服务日志'; exit 1; }
-mode="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG" | jsonfilter -e '@.mode' 2>/dev/null)"
+"$NETWORK" check || { service_log 'Capture environment check failed; check the service log'; exit 1; }
+mode="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$CONFIG" | jsonfilter -e '@.mode' 2>/dev/null)"
 # Controller conflicts must be detected even when transparent capture is off.
 controller_port="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/^.*:/, "", $2); print $2; exit}' "$CONFIG")"
 if [ -n "$controller_port" ]; then
@@ -58,7 +58,7 @@ case "$mode" in tun|tproxy)
 	fi
 	;;
 esac
-"$DASHBOARD" up || { service_log '控制接口准备失败'; exit 1; }
+"$DASHBOARD" up || { service_log 'Controller setup failed'; exit 1; }
 pipe="$STATE/log.$$.fifo"
 mkfifo -m 0600 "$pipe" || exit 1
 "$LOG" stream-core < "$pipe" &
@@ -82,12 +82,12 @@ if [ "$mode" = tun ] || [ "$mode" = tproxy ]; then
 		sleep 1
 	done
 	if [ "$ready" != 1 ]; then service_log 'Capture listener readiness failed'; exit 1; fi
-	"$NETWORK" up || { service_log '应用接管失败，请查看服务日志'; exit 1; }
+	"$NETWORK" up || { service_log 'Failed to apply capture; check the service log'; exit 1; }
 fi
-service_log "启动完成，接管方式：${mode:-none}"
-[ "$mode" != none ] || service_log '自动接管关闭，本机和局域网透明代理未启用，未应用防火墙接管规则'
+service_log "Startup complete, capture mode: ${mode:-none}"
+[ "$mode" != none ] || service_log 'Automatic capture disabled; router and LAN transparent proxying disabled; no capture firewall rules applied'
 "$LOG" separator-service || true
 wait "$child"
 result=$?
-service_log "内核意外退出，退出码=$result"
+service_log "Core exited unexpectedly, exit code=$result"
 exit "$result"

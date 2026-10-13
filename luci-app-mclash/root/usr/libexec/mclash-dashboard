@@ -20,7 +20,7 @@ port="${controller##*:}"
 case "$port" in ''|*[!0-9]*) exit 1 ;; esac
 [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
 interfaces='"lo", "br-lan"'
-metadata="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG")"
+metadata="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$CONFIG")"
 if [ -n "$metadata" ]; then
  . /usr/share/libubox/jshn.sh
  json_load "$metadata" || exit 1

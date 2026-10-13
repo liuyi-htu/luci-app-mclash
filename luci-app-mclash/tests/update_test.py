@@ -81,7 +81,7 @@ class CoreUpdateTest(unittest.TestCase):
         self.assertEqual(self.core.read_bytes(), candidate.read_bytes())
         self.assertFalse(self.calls.exists(), 'Stopped services must stay stopped')
         self.assertIn('success\t100', (self.base / 'state/update.status').read_text())
-        self.assertIn('服务保持停止', (self.base / 'state/update.status').read_text())
+        self.assertIn('service remains stopped', (self.base / 'state/update.status').read_text())
 
     def test_running_update_restores_running_state(self):
         shutil.copy(os.environ['MCLASH_TEST_CORE'], self.upload)
@@ -90,7 +90,7 @@ class CoreUpdateTest(unittest.TestCase):
         result = self.run_update()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls.read_text().splitlines(), ['stop', 'start'])
-        self.assertIn('服务已恢复运行', (self.base / 'state/update.status').read_text())
+        self.assertIn('service is running again', (self.base / 'state/update.status').read_text())
 
     def test_validation_failure_keeps_running_service(self):
         shutil.copy(os.environ['MCLASH_TEST_CORE'], self.upload)
@@ -113,7 +113,7 @@ class CoreUpdateTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.core.read_bytes(), self.original)
         self.assertEqual(self.calls.read_text().splitlines(), ['stop', 'start', 'stop', 'start'])
-        self.assertIn('旧内核已恢复，服务已恢复运行', (self.base / 'state/update.status').read_text())
+        self.assertIn('Previous core restored; service is running again', (self.base / 'state/update.status').read_text())
 
     def test_starting_service_is_not_treated_as_stopped(self):
         shutil.copy(os.environ['MCLASH_TEST_CORE'], self.upload)
@@ -122,7 +122,7 @@ class CoreUpdateTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.core.read_bytes(), self.original)
         self.assertFalse(self.calls.exists())
-        self.assertIn('服务正在启动或退出', result.stderr)
+        self.assertIn('Service is starting or exiting', result.stderr)
 
     def test_failed_restart_restores_old_core(self):
         shutil.copy(os.environ['MCLASH_TEST_CORE'], self.upload)
@@ -132,7 +132,7 @@ class CoreUpdateTest(unittest.TestCase):
         self.assertEqual(self.core.read_bytes(), self.original)
         self.assertEqual(self.calls.read_text().splitlines(), ['stop', 'start', 'stop', 'start'])
         self.assertIn('error\t100', (self.base / 'state/update.status').read_text())
-        self.assertIn('服务恢复失败', (self.base / 'state/update.status').read_text())
+        self.assertIn('service restart failed', (self.base / 'state/update.status').read_text())
 
 
 if __name__ == '__main__':

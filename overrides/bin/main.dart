@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'network.dart';
+import 'legacy.dart';
 import 'dart:js_interop';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
@@ -15,7 +16,7 @@ import '../lib/shared/windows/subscription_config.dart';
 external set exportedCall(JSFunction value);
 
 Object? plain(Object? value, [int depth = 0]) {
-  if (depth > 64) throw const FormatException('配置嵌套过深');
+  if (depth > 64) throw const FormatException('Configuration nesting is too deep');
   if (value is Map) {
     return {for (final entry in value.entries) '${entry.key}': plain(entry.value, depth + 1)};
   }
@@ -31,7 +32,9 @@ String normalize(String content) {
 
 String handle(String action, String content, String payload, {bool normalized = false}) {
   try {
-    final args = jsonDecode(payload) as Map<String, dynamic>;
+    content = migrateLegacyConfig(content);
+    final args = jsonDecode(migrateLegacyConfig(payload)) as Map<String, dynamic>;
+    if (args['template'] is String) args['template'] = migrateLegacyConfig(args['template'] as String);
     Object? result;
     switch (action) {
       case 'summary':
@@ -62,7 +65,7 @@ String handle(String action, String content, String payload, {bool normalized = 
       case 'dns':
         final dns = loadYaml(args['yaml'] as String);
         if (dns is! Map) {
-          throw const FormatException('DNS 配置须为 YAML 对象');
+          throw const FormatException('DNS configuration must be a YAML mapping');
         }
         final previousDns = (loadYaml(content) as Map)['dns'];
         final nextDns = Map<String, dynamic>.from(plain(dns) as Map);
@@ -114,14 +117,14 @@ String handle(String action, String content, String payload, {bool normalized = 
           editor.update(['external-controller'], previous['external-controller']);
           result = editor.toString();
         }
-        result = canonicalControllerMarker(result as String, force: content.split('\n').any((line) => line.trim() == '# Mclash OpenWrt 控制: true'));
+        result = canonicalControllerMarker(result as String, force: content.split('\n').any((line) => line.trim() == '# Mclash OpenWrt controller: true'));
         if (content.split('\n').any((line) => line.startsWith(networkPrefix))) {
           result = applyNetwork(result as String, networkOptions(content));
         }
       case 'subscriptionSources':
         result = subscriptionSources(content, args['count'] as int, prefixes: args['prefixes'] == null ? null : List<String>.from(args['prefixes']));
       default:
-        throw const FormatException('不支持的配置操作');
+        throw const FormatException('Unsupported configuration operation');
     }
     return jsonEncode({'ok': true, 'value': result});
   } catch (error) {

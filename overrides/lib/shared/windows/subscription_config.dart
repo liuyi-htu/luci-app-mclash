@@ -22,7 +22,7 @@ List<String> _sourcePrefixes(int count, List<String>? prefixes) {
   final values = prefixes ?? List.generate(count, (i) => count == 1 ? '' : '${i + 1}-');
   if (values.length != count || values.toSet().length != count ||
       values.any((p) => p.isNotEmpty && !RegExp(r'^[1-9]\d*-$').hasMatch(p))) {
-    throw const FormatException('机场编号无效');
+    throw const FormatException('Invalid subscription index');
   }
   return values;
 }
@@ -39,7 +39,7 @@ List<String> subscriptionSources(String content, int count, {List<String>? prefi
     if (manual.contains(name)) continue;
     var index = tags.indexWhere((tag) => tag.isNotEmpty && name.startsWith(tag));
     if (index < 0) index = tags.indexOf('');
-    if (index < 0) throw const FormatException('无法识别机场节点归属，请先更新全部机场');
+    if (index < 0) throw const FormatException('Unable to identify subscription node ownership; update all subscriptions first');
     final prefix = tags[index];
     node['name'] = name.substring(prefix.length);
     final upstream = node['dialer-proxy'];
@@ -55,7 +55,7 @@ String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) 
   final tags = _sourcePrefixes(sources.length, prefixes);
   if (sources.isEmpty) {
     if (prefixes != null) return 'proxies: []\n';
-    throw const FormatException('请输入订阅链接');
+    throw const FormatException('Enter a subscription URL');
   }
   if (sources.length == 1 && tags.single.isEmpty) return sources.single;
   final batches = <List<Map<String, dynamic>>>[];
@@ -63,7 +63,7 @@ String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) 
     final source = loadYaml(sources[i]);
     final proxies = source is Map ? source['proxies'] : null;
     if (proxies is! List || proxies.isEmpty) {
-      throw FormatException('第 ${i + 1} 个订阅没有可内置的 proxies 节点');
+      throw FormatException('Subscription ${i + 1} has no embedded proxies');
     }
     final batch = <Map<String, dynamic>>[];
     for (final node in proxies) {
@@ -71,13 +71,13 @@ String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) 
           node['name'] is! String ||
           (node['name'] as String).trim().isEmpty ||
           node['type'] is! String) {
-        throw FormatException('第 ${i + 1} 个订阅节点缺少名称或类型');
+        throw FormatException('Subscription ${i + 1} has a node without a name or type');
       }
       batch
           .add(Map<String, dynamic>.from(_plainSubscriptionValue(node) as Map));
     }
     if (batch.map((node) => node['name']).toSet().length != batch.length) {
-      throw FormatException('第 ${i + 1} 个订阅节点名称重复');
+      throw FormatException('Subscription ${i + 1} has duplicate node names');
     }
     batches.add(batch);
   }
@@ -106,7 +106,7 @@ String buildSubscriptionConfig(String template, String subscription,
   final downloaded = source is YamlMap ? source['proxies'] : null;
   if (downloaded is! YamlList || (downloaded.isEmpty && !allowEmpty)) {
     throw const FormatException(
-      '订阅没有可内置的 proxies 节点，请使用包含节点的 Mihomo 订阅',
+      'Subscription has no embedded proxies; use a Mihomo subscription containing nodes',
     );
   }
   final nodes = mergeManualNodes(downloaded, previousConfig);
@@ -116,12 +116,12 @@ String buildSubscriptionConfig(String template, String subscription,
         node['name'] is! String ||
         (node['name'] as String).trim().isEmpty ||
         node['type'] is! String) {
-      throw const FormatException('订阅节点缺少名称或类型');
+      throw const FormatException('Subscription node is missing a name or type');
     }
     names.add(node['name'] as String);
   }
   if (names.toSet().length != names.length) {
-    throw const FormatException('订阅节点名称重复');
+    throw const FormatException('Duplicate subscription node name');
   }
   if (previousConfig != null) {
     final previous = loadYaml(previousConfig) as YamlMap;
@@ -136,7 +136,7 @@ String buildSubscriptionConfig(String template, String subscription,
     ]) {
       final target = rulePolicy(rule);
       if (missing.contains(target)) {
-        throw FormatException('节点 $target 已从订阅移除，但仍被规则引用，请先修改规则；原配置已保留');
+        throw FormatException('Node $target was removed from the subscription but is still referenced by rules; update the rules first; original configuration retained');
       }
     }
   }
@@ -153,7 +153,7 @@ String buildSubscriptionConfig(String template, String subscription,
     for (final group in groups) group['name'] as String,
   };
   if (names.any(reserved.contains)) {
-    throw const FormatException('订阅节点名称与默认策略冲突');
+    throw const FormatException('Subscription node name conflicts with a default policy');
   }
   final editor = YamlEditor(configContent);
   if (config.containsKey('proxy-providers')) editor.remove(['proxy-providers']);

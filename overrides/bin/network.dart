@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
-const networkPrefix = '# Mclash OpenWrt 接管: ';
+const networkPrefix = '# Mclash OpenWrt capture: ';
 
 String canonicalControllerMarker(String content, {bool force = false}) {
-  const marker = '# Mclash OpenWrt 控制: true';
+  const marker = '# Mclash OpenWrt controller: true';
   var seen = false;
   final lines = content.split('\n').where((line) {
     if (line.trim() != marker) return true;
@@ -40,7 +40,7 @@ bool validIpv6(String value) {
 
 List<String> checkedAccess(Object? value) {
   final entries = List<String>.from(value as List? ?? []);
-  if (entries.length > 64) throw const FormatException('访问控制最多 64 条');
+  if (entries.length > 64) throw const FormatException('Access control supports at most 64 entries');
   final result = <String>[];
   for (final entry in entries) {
     final text = entry.trim().toLowerCase();
@@ -56,7 +56,7 @@ List<String> checkedAccess(Object? value) {
       final prefix = parts.length == 2 ? int.tryParse(parts[1]) : null;
       valid = ip && (parts.length == 1 || (parts.length == 2 && RegExp(r'^[0-9]{1,3}$').hasMatch(parts[1]) && prefix != null && prefix >= 0 && prefix <= (v4 ? 32 : 128)));
     }
-    if (!valid) throw const FormatException('访问控制格式无效，请填写 IP、CIDR 网段或 IPv4 起止范围');
+    if (!valid) throw const FormatException('Invalid access control; enter an IP, CIDR subnet, or IPv4 start-end range');
     if (!result.contains(text)) result.add(text);
   }
   return result;
@@ -66,13 +66,13 @@ Map<String, dynamic> checkedNetwork(Map args) {
   final mode = args['mode'] ?? 'none';
   final stack = args['stack'] ?? 'mixed';
   final interfaces = List<String>.from(args['interfaces'] ?? ['br-lan']);
-  if (!['none', 'tun', 'tproxy'].contains(mode)) throw const FormatException('无效接管方式');
-  if (!['system', 'gvisor', 'mixed'].contains(stack)) throw const FormatException('无效 TUN 协议栈');
+  if (!['none', 'tun', 'tproxy'].contains(mode)) throw const FormatException('Invalid capture mode');
+  if (!['system', 'gvisor', 'mixed'].contains(stack)) throw const FormatException('Invalid TUN stack');
   if (interfaces.isEmpty || interfaces.length > 16 || interfaces.toSet().length != interfaces.length || interfaces.any((name) => !RegExp(r'^[A-Za-z0-9_.-]{1,15}$').hasMatch(name) || ['lo', 'Mclash'].contains(name))) {
-    throw const FormatException('请填写有效的局域网设备名称，不能选择 lo 或 Mclash');
+    throw const FormatException('Enter a valid LAN interface name; lo and Mclash cannot be selected');
   }
   for (final key in ['lan', 'router', 'ipv6']) {
-    if (args[key] != null && args[key] is! bool) throw const FormatException('开关须为布尔值');
+    if (args[key] != null && args[key] is! bool) throw const FormatException('Toggles must be boolean');
   }
   return {'mode': mode, 'interfaces': interfaces, 'lan': args['lan'] ?? true, 'access': checkedAccess(args['access']), 'router': args['router'] ?? true, 'ipv6': args['ipv6'] ?? false, 'stack': stack};
 }
@@ -83,7 +83,7 @@ String applyNetwork(String content, Map args) {
   final active = mode != 'none';
   final editor = YamlEditor(content.split('\n').where((line) => !line.startsWith(networkPrefix)).join('\n'));
   final parsed = loadYaml(content);
-  if (parsed is! Map) throw const FormatException('配置须为 YAML 映射');
+  if (parsed is! Map) throw const FormatException('Configuration must be a YAML mapping');
   final tun = <String, dynamic>{'enable': mode == 'tun'};
   if (mode == 'tun') {
     tun.addAll({'device': 'Mclash', 'stack': opts['stack'], 'auto-route': false, 'auto-redirect': false,
@@ -112,7 +112,7 @@ String applyNetwork(String content, Map args) {
     final controller = '${parsed['external-controller'] ?? '0.0.0.0:9097'}';
     final portMatch = RegExp(r':([0-9]+)$').firstMatch(controller);
     final port = int.tryParse(portMatch?.group(1) ?? '') ?? 9097;
-    if (port < 1 || port > 65535) throw const FormatException('无效控制端口');
+    if (port < 1 || port > 65535) throw const FormatException('Invalid controller port');
     final bind = portMatch == null ? '0.0.0.0' : controller.substring(0, portMatch.start);
     editor.update(['external-controller'], '$bind:$port');
     // Per-node routing marks defeat the core egress bypass and can create loops.
@@ -144,9 +144,9 @@ String applyController(String content, Map args) {
  final ipv4 = address.split('.');
  final valid4 = ipv4.length == 4 && ipv4.every((part) => RegExp(r'^[0-9]{1,3}$').hasMatch(part) && int.parse(part) <= 255);
  final valid6 = address.contains(':') && RegExp(r'^[0-9a-fA-F:]{2,39}$').hasMatch(address);
- if (!valid4 && !valid6 && address != 'localhost') throw const FormatException('请填写有效的 IP 监听地址');
- if (port == null || port < 1 || port > 65535) throw const FormatException('控制端口须为 1–65535');
- final editor = YamlEditor(content.split('\n').where((line) => line.trim() != '# Mclash OpenWrt 控制: true').join('\n'));
+ if (!valid4 && !valid6 && address != 'localhost') throw const FormatException('Enter a valid IP listen address');
+ if (port == null || port < 1 || port > 65535) throw const FormatException('Controller port must be between 1 and 65535');
+ final editor = YamlEditor(content.split('\n').where((line) => line.trim() != '# Mclash OpenWrt controller: true').join('\n'));
  editor.update(['external-controller'], '${valid6 ? '[$address]' : address}:$port');
- return '# Mclash OpenWrt 控制: true\n$editor';
+ return '# Mclash OpenWrt controller: true\n$editor';
 }

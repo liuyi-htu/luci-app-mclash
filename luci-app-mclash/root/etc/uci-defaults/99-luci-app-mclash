@@ -4,8 +4,9 @@ umask 077
 config=/etc/mclash/config.yaml
 if [ -f "$config" ] && [ ! -L "$config" ]; then
  candidate="$(mktemp /etc/mclash/.dashboard-config.XXXXXX)" || exit 1
- if grep -q '^# Mclash OpenWrt 控制: true$' "$config"; then cat "$config" > "$candidate"; else
- sed -E "s/^(external-controller:[[:space:]]*[\"']?)(127\\.0\\.0\\.1|localhost):/\\10.0.0.0:/" "$config" > "$candidate"
+ /usr/libexec/mclash-config-language "$config" > "$candidate" || { rm -f "$candidate"; exit 1; }
+ if ! grep -q '^# Mclash OpenWrt controller: true$' "$candidate"; then
+ sed -i -E "s/^(external-controller:[[:space:]]*[\"']?)(127\\.0\\.0\\.1|localhost):/\\10.0.0.0:/" "$candidate" || { rm -f "$candidate"; exit 1; }
  fi
  chmod 0600 "$candidate"
  mv -f "$candidate" "$config"

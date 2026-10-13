@@ -1,0 +1,19 @@
+#!/bin/sh
+# Render built-in group names for the installed optional language package.
+# Legacy metadata is normalized first; custom names are otherwise preserved.
+LC_ALL=C
+export LC_ALL
+catalog=0
+for file in /usr/lib/lua/luci/i18n/mclash.zh-cn.lmo /usr/lib/ucode/luci/i18n/mclash.zh-cn.lmo; do
+ [ ! -s "$file" ] || catalog=1
+done
+umask 077
+program="$(mktemp /tmp/mclash-language.XXXXXX)" || exit 1
+trap 'rm -f "$program"' EXIT
+trap 'exit 1' HUP INT TERM
+encoded="$(cat /usr/share/mclash/legacy-config.sed)" || exit 1
+printf '%b\n' "$encoded" > "$program" || exit 1
+if [ "$catalog" = 1 ]; then
+ printf '%b\n' 's/🚀 Domestic/🚀 \0345\0233\0275\0345\0206\0205/g' 's/🌍 Foreign/🌍 \0345\0233\0275\0345\0244\0226/g' >> "$program" || exit 1
+fi
+sed -f "$program" "$@"

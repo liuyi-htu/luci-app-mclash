@@ -9,16 +9,24 @@ service_log() {
 }
 
 start_service() {
-	[ -x /usr/bin/mihomo ] || { logger -t mclash 'Mihomo core is missing'; service_log '启动失败：Mihomo 内核不存在'; return 1; }
-	[ -s /etc/mclash/config.yaml ] || { service_log '启动失败：配置文件为空或不存在'; return 1; }
+	[ -x /usr/bin/mihomo ] || { logger -t mclash 'Mihomo core is missing'; service_log 'Startup failed: Mihomo core is missing'; return 1; }
+	[ -s /etc/mclash/config.yaml ] || { service_log 'Startup failed: configuration is empty or missing'; return 1; }
 	umask 077
+	local candidate
+	candidate="$(mktemp /etc/mclash/.language.XXXXXX)" || { service_log 'Failed to create configuration language copy'; return 1; }
+	if ! /usr/libexec/mclash-config-language /etc/mclash/config.yaml > "$candidate"; then
+		rm -f "$candidate"; service_log 'Failed to migrate configuration language'; return 1
+	fi
+	chmod 0600 "$candidate"
 	chmod 0700 /etc/mclash
 	chmod 0600 /etc/mclash/config.yaml
-	if ! /usr/libexec/mclash-timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f /etc/mclash/config.yaml >/dev/null 2>&1; then
+	if ! /usr/libexec/mclash-timeout 30 /usr/bin/mihomo -t -d /etc/mclash -f "$candidate" >/dev/null 2>&1; then
 		logger -t mclash 'Configuration validation failed; service not started'
-		service_log '配置校验失败或超时，未启动服务'
+		rm -f "$candidate"
+		service_log 'Configuration validation failed or timed out; service not started'
 		return 1
 	fi
+	mv -f "$candidate" /etc/mclash/config.yaml || { rm -f "$candidate"; service_log 'Failed to save configuration language'; return 1; }
 	procd_open_instance main
 	procd_set_param command /usr/libexec/mclash-run
 	procd_set_param term_timeout 15

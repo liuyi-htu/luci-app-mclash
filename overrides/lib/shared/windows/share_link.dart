@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 const supportedNodeLinkHint =
-    '支持 VMess、VLESS、Trojan、SS、Hysteria2、TUIC、AnyTLS、SOCKS5、HTTP/HTTPS 节点链接';
+    'Supports VMess, VLESS, Trojan, SS, Hysteria2, TUIC, AnyTLS, SOCKS5 and HTTP/HTTPS node URLs';
 
 // A query option must be consumed explicitly, so a new transport/security
 // extension cannot accidentally be imported with its required settings lost.
@@ -15,7 +15,7 @@ class _Options {
       final value = values.remove(key);
       if (value == null) continue;
       if (result != null && result != value) {
-        throw FormatException('节点参数别名冲突：${keys.first}');
+        throw FormatException('Conflicting node parameter aliases: ${keys.first}');
       }
       result = value;
     }
@@ -27,7 +27,7 @@ class _Options {
     if (value.isEmpty) return null;
     if (['1', 'true'].contains(value.toLowerCase())) return true;
     if (['0', 'false'].contains(value.toLowerCase())) return false;
-    throw FormatException('节点参数 ${keys.first} 必须是 true/false 或 1/0');
+    throw FormatException('Node parameter ${keys.first} must be true/false or 1/0');
   }
 
   void finish() {
@@ -36,7 +36,7 @@ class _Options {
     }
     if (values.isNotEmpty) {
       // Do not echo values: authentication information may be in the query.
-      throw const FormatException('链接包含暂不支持的参数，请使用 YAML 配置导入');
+      throw const FormatException('URL contains unsupported parameters; import YAML configuration instead');
     }
   }
 }
@@ -45,19 +45,19 @@ String _decode64(String value) {
   try {
     return utf8.decode(base64.decode(base64.normalize(value)));
   } catch (_) {
-    throw const FormatException('节点链接的 Base64 格式无效');
+    throw const FormatException('Invalid node URL Base64 encoding');
   }
 }
 
 String _required(String value, String label) {
-  if (value.isEmpty) throw FormatException('节点缺少$label');
+  if (value.isEmpty) throw FormatException('Node is missing $label');
   return value;
 }
 
 String _uuid(String value) {
   if (!RegExp(r'^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$')
       .hasMatch(value)) {
-    throw const FormatException('节点 UUID 格式无效');
+    throw const FormatException('Invalid node UUID format');
   }
   return value;
 }
@@ -89,13 +89,13 @@ void _transport(Map<String, dynamic> node, _Options q) {
   if (network == 'tcp' && header == 'http' && node['type'] == 'vless') {
     network = 'http';
   } else if (header.isNotEmpty && header != 'none') {
-    throw const FormatException('暂不支持此传输伪装类型');
+    throw const FormatException('Unsupported transport camouflage type');
   }
   final allowed = node['type'] == 'vless'
       ? ['tcp', 'ws', 'http', 'h2', 'grpc', 'xhttp']
       : ['tcp', 'ws', 'grpc'];
   if (!allowed.contains(network)) {
-    throw const FormatException('暂不支持此节点传输类型，请使用 YAML 配置导入');
+    throw const FormatException('Unsupported node transport; import YAML configuration instead');
   }
   node['network'] = network;
   if (network == 'tcp') return;
@@ -103,7 +103,7 @@ void _transport(Map<String, dynamic> node, _Options q) {
     final service = q.take(['serviceName', 'service-name', 'path']);
     final mode = q.take(['mode'], 'gun');
     if (mode != 'gun' && mode.isNotEmpty) {
-      throw const FormatException('暂不支持此 gRPC 模式');
+      throw const FormatException('Unsupported gRPC mode');
     }
     node['grpc-opts'] = {'grpc-service-name': service};
     return;
@@ -113,7 +113,7 @@ void _transport(Map<String, dynamic> node, _Options q) {
   if (network == 'xhttp') {
     final mode = q.take(['mode'], 'auto');
     if (!['auto', 'stream-one', 'stream-up', 'packet-up'].contains(mode)) {
-      throw const FormatException('XHTTP 模式无效');
+      throw const FormatException('Invalid XHTTP mode');
     }
     node['xhttp-opts'] = {
       'path': path,
@@ -129,7 +129,7 @@ void _transport(Map<String, dynamic> node, _Options q) {
     if (early.isNotEmpty) {
       final count = int.tryParse(early);
       if (count == null || count < 0) {
-        throw const FormatException('WebSocket early data 大小无效');
+        throw const FormatException('Invalid WebSocket early data size');
       }
       opts['max-early-data'] = count;
     }
@@ -149,17 +149,17 @@ void _transport(Map<String, dynamic> node, _Options q) {
 }
 
 void _reality(Map<String, dynamic> node, _Options q) {
-  final key = _required(q.take(['pbk', 'public-key']), 'Reality 公钥');
+  final key = _required(q.take(['pbk', 'public-key']), 'Reality public key');
   try {
     if (base64.decode(base64.normalize(key)).length != 32) {
       throw const FormatException();
     }
   } catch (_) {
-    throw const FormatException('Reality 公钥格式无效');
+    throw const FormatException('Invalid Reality public key format');
   }
   final sid = q.take(['sid', 'short-id']);
   if (!RegExp(r'^[0-9a-fA-F]{0,16}$').hasMatch(sid) || sid.length.isOdd) {
-    throw const FormatException('Reality short-id 格式无效');
+    throw const FormatException('Invalid Reality short-id format');
   }
   q.take(['spx']); // Xray spider path has no corresponding Mihomo option.
   node['reality-opts'] = {
@@ -178,14 +178,14 @@ void _ssPlugin(Map<String, dynamic> node, String value) {
   for (final part in parts.where((v) => v.isNotEmpty)) {
     final separator = part.indexOf('=');
     final key = separator < 0 ? part : part.substring(0, separator);
-    if (opts.containsKey(key)) throw const FormatException('SS 插件参数重复');
+    if (opts.containsKey(key)) throw const FormatException('Duplicate SS plugin parameter');
     opts[key] = separator < 0 ? 'true' : part.substring(separator + 1);
   }
   final output = <String, dynamic>{};
   if (['obfs-local', 'simple-obfs', 'obfs'].contains(plugin)) {
     final mode = opts.remove('obfs') ?? opts.remove('mode') ?? '';
     if (!['http', 'tls'].contains(mode)) {
-      throw const FormatException('SS obfs 模式必须是 http 或 tls');
+      throw const FormatException('SS obfs mode must be http or tls');
     }
     output['mode'] = mode;
     final host = opts.remove('obfs-host') ?? opts.remove('host');
@@ -194,7 +194,7 @@ void _ssPlugin(Map<String, dynamic> node, String value) {
   } else if (plugin == 'v2ray-plugin') {
     final mode = opts.remove('mode') ?? 'websocket';
     if (mode != 'websocket') {
-      throw const FormatException('SS 插件仅支持 WebSocket 模式');
+      throw const FormatException('SS plugin only supports WebSocket mode');
     }
     output['mode'] = mode;
     for (final key in ['host', 'path']) {
@@ -205,15 +205,15 @@ void _ssPlugin(Map<String, dynamic> node, String value) {
       final value = opts.remove(key);
       if (value == null) continue;
       if (!['true', 'false', '1', '0'].contains(value)) {
-        throw const FormatException('SS 插件布尔参数无效');
+        throw const FormatException('Invalid SS plugin boolean parameter');
       }
       output[key] = value == 'true' || value == '1';
     }
     node['plugin'] = plugin;
   } else {
-    throw const FormatException('暂不支持此 SS 插件，请使用 YAML 配置导入');
+    throw const FormatException('Unsupported SS plugin; import YAML configuration instead');
   }
-  if (opts.isNotEmpty) throw const FormatException('暂不支持此 SS 插件参数');
+  if (opts.isNotEmpty) throw const FormatException('Unsupported SS plugin parameter');
   node['plugin-opts'] = output;
 }
 
@@ -225,7 +225,7 @@ Map<String, dynamic> parseShareLink(String input) {
   } on FormatException catch (error) {
     throw FormatException(error.message);
   } catch (_) {
-    throw const FormatException('节点链接格式无效');
+    throw const FormatException('Invalid node URL format');
   }
 }
 
@@ -233,7 +233,7 @@ Map<String, dynamic> _parseShareLink(String input) {
   if (input.isEmpty ||
       input.length > 1024 * 1024 ||
       RegExp(r'\s|%(?![0-9a-fA-F]{2})').hasMatch(input)) {
-    throw const FormatException('请输入一个有效的节点链接');
+    throw const FormatException('Enter a valid node URL');
   }
   var value = input;
   // Legacy SS encodes the entire method:password@host:port, SIP002 only
@@ -244,7 +244,7 @@ Map<String, dynamic> _parseShareLink(String input) {
     if (!body.contains('@')) {
       final decoded = _decode64(body);
       final at = decoded.lastIndexOf('@');
-      if (at < 0) throw const FormatException('SS 地址或认证信息无效');
+      if (at < 0) throw const FormatException('Invalid SS address or authentication');
       final credentials =
           base64Url.encode(utf8.encode(decoded.substring(0, at)));
       value =
@@ -254,7 +254,7 @@ Map<String, dynamic> _parseShareLink(String input) {
   // Uri normalizes an explicit :0 away for schemes whose default port is 0.
   // Validate the original authority before using its normalized representation.
   final schemeEnd = value.indexOf('://');
-  if (schemeEnd < 0) throw const FormatException('节点链接格式无效');
+  if (schemeEnd < 0) throw const FormatException('Invalid node URL format');
   final authority =
       value.substring(schemeEnd + 3).split(RegExp(r'[/?#]')).first;
   final endpoint = authority.substring(authority.lastIndexOf('@') + 1);
@@ -271,7 +271,7 @@ Map<String, dynamic> _parseShareLink(String input) {
         explicitPort == null ||
         explicitPort < 1 ||
         explicitPort > 65535) {
-      throw const FormatException('节点端口必须在 1–65535 之间');
+      throw const FormatException('Node port must be between 1 and 65535');
     }
   }
   Uri uri;
@@ -281,7 +281,7 @@ Map<String, dynamic> _parseShareLink(String input) {
     Uri.decodeComponent(uri.userInfo);
     Uri.decodeComponent(uri.fragment);
   } catch (_) {
-    throw const FormatException('节点链接格式无效');
+    throw const FormatException('Invalid node URL format');
   }
   const schemes = [
     'vless',
@@ -300,7 +300,7 @@ Map<String, dynamic> _parseShareLink(String input) {
     throw const FormatException(supportedNodeLinkHint);
   }
   if (uri.host.isEmpty || (uri.path.isNotEmpty && uri.path != '/')) {
-    throw const FormatException('节点地址或路径无效');
+    throw const FormatException('Invalid node address or path');
   }
   final scheme = uri.scheme;
   final type = switch (scheme) {
@@ -310,7 +310,7 @@ Map<String, dynamic> _parseShareLink(String input) {
     _ => scheme,
   };
   if (type == 'ss' && explicitPort == null) {
-    throw const FormatException('SS 节点缺少端口');
+    throw const FormatException('SS node port is missing');
   }
   final port = explicitPort ??
       (type == 'socks5'
@@ -319,11 +319,11 @@ Map<String, dynamic> _parseShareLink(String input) {
               ? 80
               : 443);
   if (port < 1 || port > 65535) {
-    throw const FormatException('节点端口必须在 1–65535 之间');
+    throw const FormatException('Node port must be between 1 and 65535');
   }
   final q = _Options(uri);
   if (uri.queryParametersAll.values.any((v) => v.length > 1)) {
-    throw const FormatException('节点链接参数重复');
+    throw const FormatException('Duplicate node URL parameter');
   }
   final node = <String, dynamic>{
     'name': uri.fragment.isEmpty
@@ -346,11 +346,11 @@ Map<String, dynamic> _parseShareLink(String input) {
     }
     if (scheme == 'https') node['tls'] = true;
     if (type == 'socks5') node['udp'] = true;
-    if (uri.hasQuery) throw const FormatException('HTTP/SOCKS5 节点链接不支持查询参数');
+    if (uri.hasQuery) throw const FormatException('HTTP/SOCKS5 node URLs do not support query parameters');
   } else if (type == 'ss') {
     final credentials = uri.userInfo.contains(':') ? auth : _decode64(auth);
     final colon = credentials.indexOf(':');
-    if (colon <= 0) throw const FormatException('SS 认证信息无效');
+    if (colon <= 0) throw const FormatException('Invalid SS authentication');
     final cipher = credentials.substring(0, colon);
     const ciphers = {
       'aes-128-gcm',
@@ -388,24 +388,24 @@ Map<String, dynamic> _parseShareLink(String input) {
       'aez-384',
       'deoxys-ii-256-128',
     };
-    if (!ciphers.contains(cipher)) throw const FormatException('暂不支持此 SS 加密方法');
+    if (!ciphers.contains(cipher)) throw const FormatException('Unsupported SS encryption method');
     node['cipher'] = cipher;
-    node['password'] = _required(credentials.substring(colon + 1), '密码');
+    node['password'] = _required(credentials.substring(colon + 1), 'Password');
     node['udp'] = true;
     _ssPlugin(node, q.take(['plugin']));
   } else if (type == 'vless' || type == 'trojan') {
     node['udp'] = true;
     node[type == 'vless' ? 'uuid' : 'password'] =
-        type == 'vless' ? _uuid(auth) : _required(auth, '密码');
+        type == 'vless' ? _uuid(auth) : _required(auth, 'Password');
     final security = q.take(['security'], type == 'vless' ? 'none' : 'tls');
     if (!['none', 'tls', 'reality'].contains(security) ||
         (type == 'trojan' && security == 'none')) {
-      throw const FormatException('暂不支持此节点安全类型');
+      throw const FormatException('Unsupported node security type');
     }
     if (type == 'vless') {
       final encryption = q.take(['encryption'], 'none');
       if (encryption != 'none' && encryption.isNotEmpty) {
-        throw const FormatException('暂不支持此 VLESS 加密类型');
+        throw const FormatException('Unsupported VLESS encryption type');
       }
       node['tls'] = security != 'none';
     }
@@ -420,14 +420,14 @@ Map<String, dynamic> _parseShareLink(String input) {
         if (flow != 'xtls-rprx-vision' ||
             security == 'none' ||
             node['network'] != 'tcp') {
-          throw const FormatException('Vision 需要 TLS/Reality 和 TCP 传输');
+          throw const FormatException('Vision requires TLS/Reality and TCP transport');
         }
         node['flow'] = flow;
       }
       final packet = q.take(['packetEncoding', 'packet-encoding']);
       if (packet.isNotEmpty) {
         if (!['xudp', 'packetaddr'].contains(packet)) {
-          throw const FormatException('VLESS UDP 编码无效');
+          throw const FormatException('Invalid VLESS UDP encoding');
         }
         node['packet-encoding'] = packet;
       }
@@ -437,29 +437,29 @@ Map<String, dynamic> _parseShareLink(String input) {
     if (type == 'anytls') {
       if (q.take(['security'], 'tls') != 'tls' ||
           q.take(['type', 'network'], 'tcp') != 'tcp') {
-        throw const FormatException('AnyTLS 仅支持 TLS 和 TCP');
+        throw const FormatException('AnyTLS only supports TLS and TCP');
       }
     }
     _tls(node, q, 'sni', clientFingerprint: type == 'anytls');
     if (type == 'tuic') {
       final colon = uri.userInfo.indexOf(':');
-      if (colon < 0) throw const FormatException('TUIC v5 需要 UUID 和密码');
+      if (colon < 0) throw const FormatException('TUIC v5 requires a UUID and password');
       node['uuid'] =
           _uuid(Uri.decodeComponent(uri.userInfo.substring(0, colon)));
       node['password'] = _required(
-          Uri.decodeComponent(uri.userInfo.substring(colon + 1)), '密码');
+          Uri.decodeComponent(uri.userInfo.substring(colon + 1)), 'Password');
       final congestion =
           q.take(['congestion_control', 'congestion-controller']);
       if (congestion.isNotEmpty) {
         if (!['bbr', 'cubic', 'new_reno'].contains(congestion)) {
-          throw const FormatException('TUIC 拥塞控制类型无效');
+          throw const FormatException('Invalid TUIC congestion control type');
         }
         node['congestion-controller'] = congestion;
       }
       final relay = q.take(['udp_relay_mode', 'udp-relay-mode']);
       if (relay.isNotEmpty) {
         if (!['native', 'quic'].contains(relay)) {
-          throw const FormatException('TUIC UDP 模式无效');
+          throw const FormatException('Invalid TUIC UDP mode');
         }
         node['udp-relay-mode'] = relay;
       }
@@ -471,14 +471,14 @@ Map<String, dynamic> _parseShareLink(String input) {
         if (value != null) node[aliases.last] = value;
       }
     } else {
-      node['password'] = _required(auth, '密码');
+      node['password'] = _required(auth, 'Password');
       if (type == 'hysteria2') {
         for (final key in ['up', 'down']) {
           final value = q.take([key]);
           if (value.isNotEmpty) {
             if (!RegExp(r'^\d+(\.\d+)?(\s*[KMG]?bps)?$', caseSensitive: false)
                 .hasMatch(value)) {
-              throw const FormatException('Hysteria2 带宽参数无效');
+              throw const FormatException('Invalid Hysteria2 bandwidth parameter');
             }
             node[key] = value;
           }
@@ -491,7 +491,7 @@ Map<String, dynamic> _parseShareLink(String input) {
                 ends.length > 2 ||
                 ends.any((v) => v == null || v < 1 || v > 65535) ||
                 (ends.length == 2 && ends.first! > ends.last!)) {
-              throw const FormatException('Hysteria2 跳跃端口范围无效');
+              throw const FormatException('Invalid Hysteria2 port hopping range');
             }
           }
           node['ports'] = ports;
@@ -500,12 +500,12 @@ Map<String, dynamic> _parseShareLink(String input) {
         final password = q.take(['obfs-password', 'obfsPassword']);
         if (obfs.isNotEmpty) {
           if (obfs != 'salamander') {
-            throw const FormatException('暂不支持此 Hysteria2 混淆类型');
+            throw const FormatException('Unsupported Hysteria2 obfuscation type');
           }
           node['obfs'] = obfs;
-          node['obfs-password'] = _required(password, '混淆密码');
+          node['obfs-password'] = _required(password, 'Obfuscation password');
         } else if (password.isNotEmpty) {
-          throw const FormatException('Hysteria2 混淆密码需要 obfs 参数');
+          throw const FormatException('Hysteria2 obfuscation password requires an obfs parameter');
         }
       }
     }

@@ -261,10 +261,10 @@ if not dns:
     def test_tproxy_tcp_udp_dns_and_reload(self):
         self.start_core('tproxy')
         log = (self.base / 'logs/mclash.log').read_text()
-        self.assertIn('fwmark 0x166 → 路由表 166，pref 1166', log)
+        self.assertIn('Capture firewall rules and policy routes applied', log)
         self.assertIn('local default dev lo', log)
         self.assertNotIn('table inet mclash {', log)
-        self.assertIn('接管已启用，nftables 规则已应用', log)
+        self.assertIn('Capture firewall rules and policy routes applied', log)
         for family, source in [(4, '203.0.113.1'), (6, '2001:db8:1::1')]:
             self.assertEqual(self.probe(family).splitlines(), [source, source])
             self.assertEqual(self.probe(family, True), 'DNS OK')
@@ -393,7 +393,7 @@ s=socket.socket(af,socket.SOCK_STREAM);s.settimeout(3);s.connect((target,53));s.
 
     def check_dashboard(self, secret):
         metadata = {'mode': 'none', 'interfaces': ['br-lan']}
-        self.config.write_text('# Mclash OpenWrt 接管: ' + json.dumps(metadata) + '\nexternal-controller: 0.0.0.0:9097\n' + ('secret: ' + secret + '\n' if secret else '') + 'rules: ["MATCH,DIRECT"]\n')
+        self.config.write_text('# Mclash OpenWrt capture: ' + json.dumps(metadata) + '\nexternal-controller: 0.0.0.0:9097\n' + ('secret: ' + secret + '\n' if secret else '') + 'rules: ["MATCH,DIRECT"]\n')
         command('busybox', 'ash', str(self.dashboard), 'up', env=self.env)
         proc = subprocess.Popen([str(self.core), '-d', str(self.base), '-f', str(self.config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
@@ -465,7 +465,7 @@ s=socket.socket(af,socket.SOCK_STREAM);s.settimeout(3);s.connect((target,53));s.
         command('ip', 'route', 'add', 'blackhole', '198.51.100.0/24', 'table', '166')
         result = self.helper_call('check', check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('已被占用', result.stderr)
+        self.assertIn('already in use', result.stderr)
         self.assertIn('blackhole', command('ip', 'route', 'show', 'table', '166').stdout)
         command('ip', 'route', 'del', 'blackhole', '198.51.100.0/24', 'table', '166')
         nftfail = self.host / 'nftfail'

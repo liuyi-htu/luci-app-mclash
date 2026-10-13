@@ -1,0 +1,1870 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgctxt "mclash"
+msgid "%s; Existing core unchanged; uploaded file retained for retry"
+msgstr "%s；旧内核未修改；上传文件已保留，可重试"
+
+msgctxt "mclash"
+msgid "%s; Failed to restore the previous core; check the log; backup retained"
+msgstr "%s；旧内核恢复失败，请检查日志，备份已保留"
+
+msgctxt "mclash"
+msgid "%s; Previous core restored, but service restart failed; check the log"
+msgstr "%s；旧内核已恢复，但服务恢复失败，请检查日志"
+
+msgctxt "mclash"
+msgid "%s; Previous core restored; service is running again"
+msgstr "%s；旧内核已恢复，服务已恢复运行"
+
+msgctxt "mclash"
+msgid "(chain ${entry.key})"
+msgstr " (链路 ${entry.key})"
+
+msgctxt "mclash"
+msgid ", LAN devices="
+msgstr "，代理局域网设备="
+
+msgctxt "mclash"
+msgid "; interfaces:"
+msgstr "；接口："
+
+msgctxt "mclash"
+msgid "A capture operation is in progress"
+msgstr "接管操作正在进行"
+
+msgctxt "mclash"
+msgid "A new version is available."
+msgstr "发现可安装的新版本。"
+
+msgctxt "mclash"
+msgid "Access control"
+msgstr "访问控制"
+
+msgctxt "mclash"
+msgid "Access control supports at most 64 entries"
+msgstr "访问控制最多 64 条"
+
+msgctxt "mclash"
+msgid "Access control: IPv4="
+msgstr "访问控制：IPv4="
+
+msgctxt "mclash"
+msgid "Access control: all LAN devices captured; no source allowlist required"
+msgstr "访问控制：局域网全部代理，无需来源白名单"
+
+msgctxt "mclash"
+msgid "Access control: no devices specified; LAN proxying disabled"
+msgstr "访问控制：未指定设备，局域网不代理"
+
+msgctxt "mclash"
+msgid "Access-control range is too long"
+msgstr "访问控制范围过长"
+
+msgctxt "mclash"
+msgid "Add"
+msgstr "添加"
+
+msgctxt "mclash"
+msgid "Add chain"
+msgstr "新增链路"
+
+msgctxt "mclash"
+msgid "Add node"
+msgstr "添加节点"
+
+msgctxt "mclash"
+msgid "Add proxy group"
+msgstr "新增代理组"
+
+msgctxt "mclash"
+msgid "Add rule"
+msgstr "新增规则"
+
+msgctxt "mclash"
+msgid "Add rule provider"
+msgstr "新增规则集"
+
+msgctxt "mclash"
+msgid "Add subscription"
+msgstr "新增机场"
+
+msgctxt "mclash"
+msgid "All devices"
+msgstr "全部设备"
+
+msgctxt "mclash"
+msgid "Already up to date"
+msgstr "当前已是最新版本"
+
+msgctxt "mclash"
+msgid "Already up to date."
+msgstr "当前已是最新版本。"
+
+msgctxt "mclash"
+msgid "Another operation is in progress; retry later"
+msgstr "另一个操作正在进行，请稍后重试"
+
+msgctxt "mclash"
+msgid "AnyTLS only supports TLS and TCP"
+msgstr "AnyTLS 仅支持 TLS 和 TCP"
+
+msgctxt "mclash"
+msgid "Automatic capture disabled; router and LAN transparent proxying disabled; no capture firewall rules applied"
+msgstr "自动接管关闭，本机和局域网透明代理未启用，未应用防火墙接管规则"
+
+msgctxt "mclash"
+msgid "Automatic latency test"
+msgstr "自动测速"
+
+msgctxt "mclash"
+msgid "Available policies:"
+msgstr "可用策略："
+
+msgctxt "mclash"
+msgid "Baidu connection"
+msgstr "百度连接"
+
+msgctxt "mclash"
+msgid "Basic settings"
+msgstr "基础设置"
+
+msgctxt "mclash"
+msgid "Behavior"
+msgstr "行为"
+
+msgctxt "mclash"
+msgid "Browser"
+msgstr "浏览器"
+
+msgctxt "mclash"
+msgid "Cancel"
+msgstr "取消"
+
+msgctxt "mclash"
+msgid "Capture cleanup failed; check the log"
+msgstr "接管清理失败，请查看日志"
+
+msgctxt "mclash"
+msgid "Capture cleanup incomplete; check for leftover rules"
+msgstr "接管清理不完整，请检查残留规则"
+
+msgctxt "mclash"
+msgid "Capture environment check failed; check the service log"
+msgstr "接管环境检查失败，请查看服务日志"
+
+msgctxt "mclash"
+msgid "Capture firewall rules and policy routes applied"
+msgstr "防火墙接管规则与策略路由已应用"
+
+msgctxt "mclash"
+msgid "Capture firewall rules and policy routes removed"
+msgstr "防火墙接管规则与策略路由已清理"
+
+msgctxt "mclash"
+msgid "Capture mode"
+msgstr "接管方式"
+
+msgctxt "mclash"
+msgid "Capture settings are too large"
+msgstr "接管设置过大"
+
+msgctxt "mclash"
+msgid "Chain"
+msgstr "链路 "
+
+msgctxt "mclash"
+msgid "Chain groups are managed by Proxy chains"
+msgstr "链路代理组由链式节点管理"
+
+msgctxt "mclash"
+msgid "Check for updates"
+msgstr "检查更新"
+
+msgctxt "mclash"
+msgid "Checking core and runtime configuration…"
+msgstr "正在检查内核和运行配置…"
+
+msgctxt "mclash"
+msgid "Checking the official stable release…"
+msgstr "正在查询官方稳定版本…"
+
+msgctxt "mclash"
+msgid "Classical"
+msgstr "经典规则"
+
+msgctxt "mclash"
+msgid "Clear logs"
+msgstr "清空日志"
+
+msgctxt "mclash"
+msgid "Click Refresh logs to read the logs."
+msgstr "点击“刷新日志”读取日志。"
+
+msgctxt "mclash"
+msgid "Click again to confirm stopping"
+msgstr "点击后再次确认停止"
+
+msgctxt "mclash"
+msgid "Click again to stop"
+msgstr "再次点击停止"
+
+msgctxt "mclash"
+msgid "Click again to stop the service"
+msgstr "再次点击停止服务"
+
+msgctxt "mclash"
+msgid "Click to open"
+msgstr "点击打开"
+
+msgctxt "mclash"
+msgid "Click to start the service"
+msgstr "点击启动服务"
+
+msgctxt "mclash"
+msgid "Click to test"
+msgstr "点我检测"
+
+msgctxt "mclash"
+msgid "Close"
+msgstr "关闭"
+
+msgctxt "mclash"
+msgid "Configuration file does not exist"
+msgstr "配置文件不存在"
+
+msgctxt "mclash"
+msgid "Configuration file is missing or is a symbolic link"
+msgstr "配置文件不存在或为符号链接"
+
+msgctxt "mclash"
+msgid "Configuration has no embedded nodes; update subscriptions first"
+msgstr "配置没有内置节点，请先更新机场订阅"
+
+msgctxt "mclash"
+msgid "Configuration must be a YAML mapping"
+msgstr "配置须为 YAML 映射"
+
+msgctxt "mclash"
+msgid "Configuration nesting is too deep"
+msgstr "配置嵌套过深"
+
+msgctxt "mclash"
+msgid "Configuration or rule resource validation failed"
+msgstr "配置或规则资源校验失败"
+
+msgctxt "mclash"
+msgid "Configuration saved; changes take effect when the service starts"
+msgstr "配置已保存，启动服务后生效"
+
+msgctxt "mclash"
+msgid "Configuration upload is missing"
+msgstr "待保存配置不存在"
+
+msgctxt "mclash"
+msgid "Configuration validation failed or timed out; service not started"
+msgstr "配置校验失败或超时，未启动服务"
+
+msgctxt "mclash"
+msgid "Configuration validation passed"
+msgstr "配置校验通过"
+
+msgctxt "mclash"
+msgid "Configuration validation timed out or ran out of memory"
+msgstr "配置校验超时或内存不足"
+
+msgctxt "mclash"
+msgid "Configure"
+msgstr "设置 "
+
+msgctxt "mclash"
+msgid "Configured"
+msgstr "已配置"
+
+msgctxt "mclash"
+msgid "Conflicting node parameter aliases: ${keys.first}"
+msgstr "节点参数别名冲突：${keys.first}"
+
+msgctxt "mclash"
+msgid "Conflicting node parameter aliases: %s"
+msgstr "节点参数别名冲突：%s"
+
+msgctxt "mclash"
+msgid "Connection failed or timed out"
+msgstr "连接失败或超时"
+
+msgctxt "mclash"
+msgid "Controller must listen on a local router address"
+msgstr "控制器须监听路由器本机地址"
+
+msgctxt "mclash"
+msgid "Controller port must be between 1 and 65535"
+msgstr "控制端口须为 1–65535"
+
+msgctxt "mclash"
+msgid "Controller setup failed"
+msgstr "控制接口准备失败"
+
+msgctxt "mclash"
+msgid "Core cannot run; check the CPU architecture"
+msgstr "内核无法运行，请检查 CPU 架构"
+
+msgctxt "mclash"
+msgid "Core download failed; existing core unchanged"
+msgstr "内核下载失败，旧内核未修改"
+
+msgctxt "mclash"
+msgid "Core exited unexpectedly, exit code="
+msgstr "内核意外退出，退出码="
+
+msgctxt "mclash"
+msgid "Core file is not a Linux ELF executable"
+msgstr "内核文件不是 Linux ELF 程序"
+
+msgctxt "mclash"
+msgid "Core or capture rules are not ready; check the system log"
+msgstr "核心或接管规则未就绪，请查看系统日志"
+
+msgctxt "mclash"
+msgid "Current version:"
+msgstr "当前版本："
+
+msgctxt "mclash"
+msgid "DNS configuration (YAML)"
+msgstr "DNS 配置（YAML）"
+
+msgctxt "mclash"
+msgid "DNS configuration must be a YAML mapping"
+msgstr "DNS 配置须为 YAML 对象"
+
+msgctxt "mclash"
+msgid "DNS management"
+msgstr "DNS 管理"
+
+msgctxt "mclash"
+msgid "Decompression failed or core exceeds 128 MiB"
+msgstr "解压失败或内核超过 128 MiB"
+
+msgctxt "mclash"
+msgid "Delete"
+msgstr "删除"
+
+msgctxt "mclash"
+msgid "Disable automatic capture"
+msgstr "关闭自动接管"
+
+msgctxt "mclash"
+msgid "Disabled"
+msgstr "未启用"
+
+msgctxt "mclash"
+msgid "Dismiss notification"
+msgstr "关闭提示"
+
+msgctxt "mclash"
+msgid "Domain"
+msgstr "域名"
+
+msgctxt "mclash"
+msgid "Domestic and Foreign proxy groups cannot be deleted"
+msgstr "国内和国外代理组不可删除"
+
+msgctxt "mclash"
+msgid "Domestic and Foreign proxy groups cannot be renamed"
+msgstr "国内和国外代理组的名称不可修改"
+
+msgctxt "mclash"
+msgid "Download URL"
+msgstr "下载链接"
+
+msgctxt "mclash"
+msgid "Downloading Mihomo for this architecture…"
+msgstr "正在下载对应架构的 Mihomo…"
+
+msgctxt "mclash"
+msgid "Duplicate LAN interface"
+msgstr "局域网设备重复"
+
+msgctxt "mclash"
+msgid "Duplicate SS plugin parameter"
+msgstr "SS 插件参数重复"
+
+msgctxt "mclash"
+msgid "Duplicate node URL parameter"
+msgstr "节点链接参数重复"
+
+msgctxt "mclash"
+msgid "Duplicate subscription node name"
+msgstr "订阅节点名称重复"
+
+msgctxt "mclash"
+msgid "Edit"
+msgstr "编辑"
+
+msgctxt "mclash"
+msgid "Edit Host"
+msgstr "修改 Host"
+
+msgctxt "mclash"
+msgid "Edit subscription"
+msgstr "编辑机场"
+
+msgctxt "mclash"
+msgid "Enable a local HTTP controller in the configuration."
+msgstr "请在配置中启用本机 HTTP 控制器。"
+
+msgctxt "mclash"
+msgid "Enabled"
+msgstr "开启"
+
+msgctxt "mclash"
+msgid "Enter a Host domain or IP, optionally with a port; do not enter a URL"
+msgstr "请输入 Host 域名或 IP，可带端口，不要填写 URL"
+
+msgctxt "mclash"
+msgid "Enter a local file path"
+msgstr "请输入本地文件路径"
+
+msgctxt "mclash"
+msgid "Enter a subscription URL"
+msgstr "请输入订阅链接"
+
+msgctxt "mclash"
+msgid "Enter a subscription name and URL"
+msgstr "请填写机场名称和订阅链接"
+
+msgctxt "mclash"
+msgid "Enter a valid HTTP / HTTPS download URL"
+msgstr "请输入有效的 HTTP / HTTPS 下载链接"
+
+msgctxt "mclash"
+msgid "Enter a valid IP listen address"
+msgstr "请填写有效的 IP 监听地址"
+
+msgctxt "mclash"
+msgid "Enter a valid LAN interface name; lo and Mclash cannot be selected"
+msgstr "请填写有效的局域网设备名称，不能选择 lo 或 Mclash"
+
+msgctxt "mclash"
+msgid "Enter a valid node URL"
+msgstr "请输入一个有效的节点链接"
+
+msgctxt "mclash"
+msgid "Enter a vmess:// node URL"
+msgstr "请输入一个 vmess:// 节点链接"
+
+msgctxt "mclash"
+msgid "Enter address:port, for example 127.0.0.1:9091"
+msgstr "请输入地址:端口，例如 127.0.0.1:9091"
+
+msgctxt "mclash"
+msgid "Enter inline rules, one per line"
+msgstr "请填写内嵌规则，每行一条"
+
+msgctxt "mclash"
+msgid "Enter one rule"
+msgstr "请填写一条规则"
+
+msgctxt "mclash"
+msgid "Entry and exit nodes must be different"
+msgstr "入口和出口不能选择同一个节点"
+
+msgctxt "mclash"
+msgid "Existing core unchanged; uploaded file retained for retry"
+msgstr "旧内核未修改；上传文件已保留，可重试"
+
+msgctxt "mclash"
+msgid "Expires:"
+msgstr "到期时间："
+
+msgctxt "mclash"
+msgid "Failed to apply capture; check the service log"
+msgstr "应用接管失败，请查看服务日志"
+
+msgctxt "mclash"
+msgid "Failed to apply nftables capture rules"
+msgstr "应用 nftables 接管规则失败"
+
+msgctxt "mclash"
+msgid "Failed to back up core"
+msgstr "备份内核失败"
+
+msgctxt "mclash"
+msgid "Failed to clean up capture rules; check the log"
+msgstr "清理接管规则失败，请查看日志"
+
+msgctxt "mclash"
+msgid "Failed to clear logs"
+msgstr "清空日志失败"
+
+msgctxt "mclash"
+msgid "Failed to connect to Mihomo controller; check service status, listen address and secret"
+msgstr "连接 Mihomo 控制器失败，请检查运行状态、监听地址和密钥"
+
+msgctxt "mclash"
+msgid "Failed to create TProxy route"
+msgstr "创建 TProxy 路由失败"
+
+msgctxt "mclash"
+msgid "Failed to create TUN route"
+msgstr "创建 TUN 路由失败"
+
+msgctxt "mclash"
+msgid "Failed to create policy route"
+msgstr "创建策略路由失败"
+
+msgctxt "mclash"
+msgid "Failed to query the official release; check network connectivity or GitHub rate limits"
+msgstr "查询官方 Release 失败，请检查网络或 GitHub 限流"
+
+msgctxt "mclash"
+msgid "Failed to read configuration"
+msgstr "读取配置失败"
+
+msgctxt "mclash"
+msgid "Failed to read uploaded file"
+msgstr "读取上传文件失败"
+
+msgctxt "mclash"
+msgid "Failed to replace core"
+msgstr "替换内核失败"
+
+msgctxt "mclash"
+msgid "Failed to restore the previous core; check the log; backup retained"
+msgstr "旧内核恢复失败，请检查日志，备份已保留"
+
+msgctxt "mclash"
+msgid "Failed to save configuration"
+msgstr "保存配置失败"
+
+msgctxt "mclash"
+msgid "Failed to set configuration permissions"
+msgstr "设置配置权限失败"
+
+msgctxt "mclash"
+msgid "Failed to stop service"
+msgstr "停止服务失败"
+
+msgctxt "mclash"
+msgid "Failed to write core"
+msgstr "写入内核失败"
+
+msgctxt "mclash"
+msgid "Failed:"
+msgstr "失败："
+
+msgctxt "mclash"
+msgid "Failover"
+msgstr "故障转移"
+
+msgctxt "mclash"
+msgid "File path"
+msgstr "文件路径"
+
+msgctxt "mclash"
+msgid "Format"
+msgstr "格式"
+
+msgctxt "mclash"
+msgid "Front and back nodes must be different"
+msgstr "前置和后置不能选择同一个节点"
+
+msgctxt "mclash"
+msgid "GitHub connection"
+msgstr "GitHub 连接"
+
+msgctxt "mclash"
+msgid "Google connection"
+msgstr "谷歌连接"
+
+msgctxt "mclash"
+msgid "HTTP/SOCKS5 node URLs do not support query parameters"
+msgstr "HTTP/SOCKS5 节点链接不支持查询参数"
+
+msgctxt "mclash"
+msgid "Host must not contain a URL, path or whitespace"
+msgstr "Host 不要包含 URL、路径或空白字符"
+
+msgctxt "mclash"
+msgid "Hysteria2 obfuscation password requires an obfs parameter"
+msgstr "Hysteria2 混淆密码需要 obfs 参数"
+
+msgctxt "mclash"
+msgid "IP subnet"
+msgstr "IP 网段"
+
+msgctxt "mclash"
+msgid "IPs / ranges"
+msgstr " 个 IP／范围"
+
+msgctxt "mclash"
+msgid "Inactive"
+msgstr "未生效"
+
+msgctxt "mclash"
+msgid "Include DIRECT"
+msgstr "包含 DIRECT"
+
+msgctxt "mclash"
+msgid "Incompatible configuration YAML or field format"
+msgstr "配置 YAML 或字段格式不兼容"
+
+msgctxt "mclash"
+msgid "Inline"
+msgstr "内嵌"
+
+msgctxt "mclash"
+msgid "Inline rules (one per line)"
+msgstr "内嵌规则（每行一条）"
+
+msgctxt "mclash"
+msgid "Install firewall4, nftables and ip-full"
+msgstr "请安装 firewall4、nftables 和 ip-full"
+
+msgctxt "mclash"
+msgid "Install the /usr/bin/mihomo core first"
+msgstr "请先安装 /usr/bin/mihomo 核心"
+
+msgctxt "mclash"
+msgid "Invalid Hysteria2 bandwidth parameter"
+msgstr "Hysteria2 带宽参数无效"
+
+msgctxt "mclash"
+msgid "Invalid Hysteria2 port hopping range"
+msgstr "Hysteria2 跳跃端口范围无效"
+
+msgctxt "mclash"
+msgid "Invalid LAN interface list"
+msgstr "无效局域网接口列表"
+
+msgctxt "mclash"
+msgid "Invalid LAN interface name"
+msgstr "无效局域网设备名称"
+
+msgctxt "mclash"
+msgid "Invalid LAN proxy toggle"
+msgstr "无效局域网代理开关"
+
+msgctxt "mclash"
+msgid "Invalid Reality public key format"
+msgstr "Reality 公钥格式无效"
+
+msgctxt "mclash"
+msgid "Invalid Reality short-id format"
+msgstr "Reality short-id 格式无效"
+
+msgctxt "mclash"
+msgid "Invalid SS address or authentication"
+msgstr "SS 地址或认证信息无效"
+
+msgctxt "mclash"
+msgid "Invalid SS authentication"
+msgstr "SS 认证信息无效"
+
+msgctxt "mclash"
+msgid "Invalid SS plugin boolean parameter"
+msgstr "SS 插件布尔参数无效"
+
+msgctxt "mclash"
+msgid "Invalid TUIC UDP mode"
+msgstr "TUIC UDP 模式无效"
+
+msgctxt "mclash"
+msgid "Invalid TUIC congestion control type"
+msgstr "TUIC 拥塞控制类型无效"
+
+msgctxt "mclash"
+msgid "Invalid TUN stack"
+msgstr "无效 TUN 协议栈"
+
+msgctxt "mclash"
+msgid "Invalid VLESS UDP encoding"
+msgstr "VLESS UDP 编码无效"
+
+msgctxt "mclash"
+msgid "Invalid VMess URL Base64 or JSON encoding"
+msgstr "VMess 链接的 Base64 或 JSON 格式无效"
+
+msgctxt "mclash"
+msgid "Invalid VMess address, user ID, port or alterId"
+msgstr "VMess 地址、用户 ID、端口或 alterId 无效"
+
+msgctxt "mclash"
+msgid "Invalid WebSocket early data size"
+msgstr "WebSocket early data 大小无效"
+
+msgctxt "mclash"
+msgid "Invalid XHTTP mode"
+msgstr "XHTTP 模式无效"
+
+msgctxt "mclash"
+msgid "Invalid access control; enter an IP, CIDR subnet, or IPv4 start-end range"
+msgstr "访问控制格式无效，请填写 IP、CIDR 网段或 IPv4 起止范围"
+
+msgctxt "mclash"
+msgid "Invalid access-control list"
+msgstr "无效访问控制列表"
+
+msgctxt "mclash"
+msgid "Invalid access-control range"
+msgstr "无效访问控制范围"
+
+msgctxt "mclash"
+msgid "Invalid arguments"
+msgstr "参数错误"
+
+msgctxt "mclash"
+msgid "Invalid capture mode"
+msgstr "无效接管方式"
+
+msgctxt "mclash"
+msgid "Invalid capture settings"
+msgstr "无效接管设置"
+
+msgctxt "mclash"
+msgid "Invalid capture toggle"
+msgstr "无效接管开关"
+
+msgctxt "mclash"
+msgid "Invalid controller port"
+msgstr "无效控制端口"
+
+msgctxt "mclash"
+msgid "Invalid controller secret"
+msgstr "无效控制密钥"
+
+msgctxt "mclash"
+msgid "Invalid local controller address"
+msgstr "无效本机控制地址"
+
+msgctxt "mclash"
+msgid "Invalid node URL Base64 encoding"
+msgstr "节点链接的 Base64 格式无效"
+
+msgctxt "mclash"
+msgid "Invalid node URL format"
+msgstr "节点链接格式无效"
+
+msgctxt "mclash"
+msgid "Invalid node UUID format"
+msgstr "节点 UUID 格式无效"
+
+msgctxt "mclash"
+msgid "Invalid node address or path"
+msgstr "节点地址或路径无效"
+
+msgctxt "mclash"
+msgid "Invalid proxy group encoding"
+msgstr "无效代理组编码"
+
+msgctxt "mclash"
+msgid "Invalid proxy group members"
+msgstr "代理组成员无效"
+
+msgctxt "mclash"
+msgid "Invalid proxy mode"
+msgstr "无效代理模式"
+
+msgctxt "mclash"
+msgid "Invalid proxy operation"
+msgstr "无效代理操作"
+
+msgctxt "mclash"
+msgid "Invalid release version format"
+msgstr "Release 版本格式无效"
+
+msgctxt "mclash"
+msgid "Invalid rule format"
+msgstr "规则格式无效"
+
+msgctxt "mclash"
+msgid "Invalid rule provider name or content"
+msgstr "规则集名称或内容无效"
+
+msgctxt "mclash"
+msgid "Invalid service state; existing core unchanged"
+msgstr "服务状态无效，旧内核未修改"
+
+msgctxt "mclash"
+msgid "Invalid subscription index"
+msgstr "机场编号无效"
+
+msgctxt "mclash"
+msgid "Invalid subscription process"
+msgstr "订阅进程无效"
+
+msgctxt "mclash"
+msgid "Invalid uploaded file"
+msgstr "上传文件无效"
+
+msgctxt "mclash"
+msgid "Keep at least one target node"
+msgstr "请保留至少一个节点作为作用对象"
+
+msgctxt "mclash"
+msgid "LAN"
+msgstr "局域网"
+
+msgctxt "mclash"
+msgid "LAN interface does not exist:"
+msgstr "局域网设备不存在："
+
+msgctxt "mclash"
+msgid "LAN interface name is too long"
+msgstr "局域网设备名称过长"
+
+msgctxt "mclash"
+msgid "LAN interfaces"
+msgstr "局域网设备"
+
+msgctxt "mclash"
+msgid "Latest version:"
+msgstr "最新版本："
+
+msgctxt "mclash"
+msgid "Leave empty to match all nodes"
+msgstr "留空匹配全部节点"
+
+msgctxt "mclash"
+msgid "Listen address and port"
+msgstr "监听地址与端口"
+
+msgctxt "mclash"
+msgid "Load balancing"
+msgstr "负载均衡"
+
+msgctxt "mclash"
+msgid "Local file"
+msgstr "本地文件"
+
+msgctxt "mclash"
+msgid "Logs"
+msgstr "日志"
+
+msgctxt "mclash"
+msgid "Logs cleared"
+msgstr "日志已清空"
+
+msgctxt "mclash"
+msgid "MRS only supports HTTP or file providers with domain / ipcidr behavior"
+msgstr "MRS 仅支持远程或文件来源的 domain / ipcidr 规则集"
+
+msgctxt "mclash"
+msgid "Manage subscriptions"
+msgstr "管理订阅"
+
+msgctxt "mclash"
+msgid "Manual node list has changed; reopen the page"
+msgstr "手动节点列表已变化，请重新打开页面"
+
+msgctxt "mclash"
+msgid "Manual selection"
+msgstr "手动选择"
+
+msgctxt "mclash"
+msgid "Mclash"
+msgstr "Mclash"
+
+msgctxt "mclash"
+msgid "Mclash firewall include files are already in use"
+msgstr "Mclash 防火墙包含文件已被占用"
+
+msgctxt "mclash"
+msgid "Measure the target website HTTPS request time from the selected device."
+msgstr "从所选设备检测目标网站的 HTTPS 请求耗时。"
+
+msgctxt "mclash"
+msgid "Mihomo %s installed; service is running again"
+msgstr "Mihomo %s 已安装，服务已恢复运行"
+
+msgctxt "mclash"
+msgid "Mihomo %s installed; service remains stopped"
+msgstr "Mihomo %s 已安装，服务保持停止"
+
+msgctxt "mclash"
+msgid "Mihomo configuration validation failed or timed out; check YAML, nodes and rule resources"
+msgstr "Mihomo 配置校验失败或超时，请检查 YAML、节点及规则资源"
+
+msgctxt "mclash"
+msgid "Mihomo core is missing or cannot run; install /usr/bin/mihomo for the router architecture"
+msgstr "Mihomo 核心缺失或无法运行，请安装匹配路由器架构的 /usr/bin/mihomo"
+
+msgctxt "mclash"
+msgid "Mihomo not installed"
+msgstr "Mihomo 未安装"
+
+msgctxt "mclash"
+msgid "Mixed stack"
+msgstr "混合协议栈"
+
+msgctxt "mclash"
+msgid "Name"
+msgstr "名称"
+
+msgctxt "mclash"
+msgid "Name conflicts with an existing node or proxy group"
+msgstr "名称与已有节点或代理组冲突"
+
+msgctxt "mclash"
+msgid "Name must not be empty or contain commas, brackets or newlines"
+msgstr "名称不能为空，且不能包含逗号、括号或换行"
+
+msgctxt "mclash"
+msgid "New core does not support features in the current configuration"
+msgstr "新内核不支持当前配置中的功能"
+
+msgctxt "mclash"
+msgid "New core is not ready; restoring the previous core"
+msgstr "新内核未就绪，正在恢复旧内核"
+
+msgctxt "mclash"
+msgid "No logs available."
+msgstr "暂无日志。"
+
+msgctxt "mclash"
+msgid "No nodes match $groupName; adjust the regex or select DIRECT"
+msgstr "$groupName 未匹配到节点，请调整正则表达式或选择 DIRECT"
+
+msgctxt "mclash"
+msgid "No nodes match %s; adjust the regex or select DIRECT"
+msgstr "%s 未匹配到节点，请调整正则表达式或选择 DIRECT"
+
+msgctxt "mclash"
+msgid "No subscription fetch is in progress"
+msgstr "没有正在拉取的订阅"
+
+msgctxt "mclash"
+msgid "No update has started."
+msgstr "尚未开始更新。"
+
+msgctxt "mclash"
+msgid "Node $target was removed from the subscription but is still referenced by rules; update the rules first; original configuration retained"
+msgstr "节点 $target 已从订阅移除，但仍被规则引用，请先修改规则；原配置已保留"
+
+msgctxt "mclash"
+msgid "Node ${chain.key} connects to different entries in multiple chains; adjust the selection"
+msgstr "节点“${chain.key}”被多条链路连接到不同入口，请调整选择"
+
+msgctxt "mclash"
+msgid "Node %s connects to different entries in multiple chains; adjust the selection"
+msgstr "节点 %s 被多条链路连接到不同入口，请调整选择"
+
+msgctxt "mclash"
+msgid "Node %s was removed from the subscription but is still referenced by rules; update the rules first; original configuration retained"
+msgstr "节点 %s 已从订阅移除，但仍被规则引用，请先修改规则；原配置已保留"
+
+msgctxt "mclash"
+msgid "Node URL"
+msgstr "节点链接"
+
+msgctxt "mclash"
+msgid "Node is missing $label"
+msgstr "节点缺少$label"
+
+msgctxt "mclash"
+msgid "Node is missing %s"
+msgstr "节点缺少 %s"
+
+msgctxt "mclash"
+msgid "Node management"
+msgstr "节点管理"
+
+msgctxt "mclash"
+msgid "Node matching regex"
+msgstr "节点匹配正则"
+
+msgctxt "mclash"
+msgid "Node name is missing"
+msgstr "缺少节点名称"
+
+msgctxt "mclash"
+msgid "Node parameter ${keys.first} must be true/false or 1/0"
+msgstr "节点参数 ${keys.first} 必须是 true/false 或 1/0"
+
+msgctxt "mclash"
+msgid "Node parameter %s must be true/false or 1/0"
+msgstr "节点参数 %s 必须是 true/false 或 1/0"
+
+msgctxt "mclash"
+msgid "Node port must be between 1 and 65535"
+msgstr "节点端口必须在 1–65535 之间"
+
+msgctxt "mclash"
+msgid "Nodes and rules"
+msgstr "节点与规则"
+
+msgctxt "mclash"
+msgid "None"
+msgstr "无"
+
+msgctxt "mclash"
+msgid "Not checked"
+msgstr "未检查"
+
+msgctxt "mclash"
+msgid "Not installed"
+msgstr "未安装"
+
+msgctxt "mclash"
+msgid "Obfuscation password"
+msgstr "混淆密码"
+
+msgctxt "mclash"
+msgid "Official release has no asset for this architecture"
+msgstr "官方 Release 缺少对应架构文件"
+
+msgctxt "mclash"
+msgid "Official release has no valid SHA256; refusing to replace the core"
+msgstr "官方 Release 未提供有效 SHA256，拒绝覆盖内核"
+
+msgctxt "mclash"
+msgid "Online selection is unavailable for this architecture; upload the matching official core"
+msgstr "暂不支持此架构的在线选择，请上传对应的官方内核"
+
+msgctxt "mclash"
+msgid "Online update"
+msgstr "在线更新"
+
+msgctxt "mclash"
+msgid "Only allowlisted devices"
+msgstr "仅访问控制指定设备"
+
+msgctxt "mclash"
+msgid "Only manually added nodes can be deleted"
+msgstr "只能删除手动添加的节点"
+
+msgctxt "mclash"
+msgid "Only one subscription can be downloaded at a time"
+msgstr "每次只能下载一个订阅"
+
+msgctxt "mclash"
+msgid "Open proxy dashboard"
+msgstr "打开代理面板"
+
+msgctxt "mclash"
+msgid "Open the Zashboard proxy dashboard."
+msgstr "打开 Zashboard 代理面板。"
+
+msgctxt "mclash"
+msgid "OpenAI connection"
+msgstr "OpenAI 连接"
+
+msgctxt "mclash"
+msgid "Operation completed"
+msgstr "操作完成"
+
+msgctxt "mclash"
+msgid "Operation failed"
+msgstr "操作失败"
+
+msgctxt "mclash"
+msgid "Original rule provider does not exist"
+msgstr "原规则集不存在"
+
+msgctxt "mclash"
+msgid "Password"
+msgstr "密码"
+
+msgctxt "mclash"
+msgid "Policies and rules"
+msgstr "策略与规则"
+
+msgctxt "mclash"
+msgid "Policy rule 1166 or route table 166 is already in use"
+msgstr "策略路由 1166 或路由表 166 已被占用"
+
+msgctxt "mclash"
+msgid "Pre-proxy nodes (in connection order)"
+msgstr "前置节点（按连接顺序）"
+
+msgctxt "mclash"
+msgid "Previous capture rules have not been removed"
+msgstr "上次接管规则尚未清理"
+
+msgctxt "mclash"
+msgid "Previous core restored, but service restart failed; check the log"
+msgstr "旧内核已恢复，但服务恢复失败，请检查日志"
+
+msgctxt "mclash"
+msgid "Previous core restored; service is running again"
+msgstr "旧内核已恢复，服务已恢复运行"
+
+msgctxt "mclash"
+msgid "Probe source"
+msgstr "检测来源"
+
+msgctxt "mclash"
+msgid "Proxy IPs / ranges (one per line)"
+msgstr "代理 IP／范围（每行一条）"
+
+msgctxt "mclash"
+msgid "Proxy IPv6"
+msgstr "代理 IPv6"
+
+msgctxt "mclash"
+msgid "Proxy LAN devices"
+msgstr "代理局域网设备"
+
+msgctxt "mclash"
+msgid "Proxy chain forms a cycle; select other nodes"
+msgstr "代理链路形成循环，请选择其他节点"
+
+msgctxt "mclash"
+msgid "Proxy chains"
+msgstr "链式节点"
+
+msgctxt "mclash"
+msgid "Proxy control request is missing"
+msgstr "缺少代理控制请求"
+
+msgctxt "mclash"
+msgid "Proxy dashboard"
+msgstr "代理面板"
+
+msgctxt "mclash"
+msgid "Proxy group"
+msgstr "代理组"
+
+msgctxt "mclash"
+msgid "Proxy group $name was not found in the configuration"
+msgstr "配置文件中找不到 $name 代理组"
+
+msgctxt "mclash"
+msgid "Proxy group %s was not found in the configuration"
+msgstr "配置文件中找不到 %s 代理组"
+
+msgctxt "mclash"
+msgid "Proxy group has no nodes; adjust the regex or select DIRECT"
+msgstr "代理组没有节点，请调整正则表达式或选择 DIRECT"
+
+msgctxt "mclash"
+msgid "Proxy group is missing"
+msgstr "缺少代理组"
+
+msgctxt "mclash"
+msgid "Proxy group management"
+msgstr "代理组管理"
+
+msgctxt "mclash"
+msgid "Proxy group members can only be changed through the node matching regex"
+msgstr "代理组成员只能通过节点匹配正则修改"
+
+msgctxt "mclash"
+msgid "Proxy group name must not be empty or contain commas or newlines"
+msgstr "代理组名称不能为空，也不能包含逗号或换行"
+
+msgctxt "mclash"
+msgid "Proxy group order must contain every existing group exactly once"
+msgstr "代理组排序必须包含所有现有代理组且不能重复"
+
+msgctxt "mclash"
+msgid "Proxy groups or chains form a cycle"
+msgstr "代理组或链路形成循环"
+
+msgctxt "mclash"
+msgid "Proxy router traffic"
+msgstr "代理路由器本机"
+
+msgctxt "mclash"
+msgid "Proxy scope"
+msgstr "代理范围"
+
+msgctxt "mclash"
+msgid "Proxy scope: router traffic="
+msgstr "代理范围：代理本机="
+
+msgctxt "mclash"
+msgid "Reality public key"
+msgstr "Reality 公钥"
+
+msgctxt "mclash"
+msgid "Refresh logs"
+msgstr "刷新日志"
+
+msgctxt "mclash"
+msgid "Remaining traffic:"
+msgstr "剩余流量："
+
+msgctxt "mclash"
+msgid "Replacing core…"
+msgstr "正在替换内核…"
+
+msgctxt "mclash"
+msgid "Request is too large"
+msgstr "请求过大"
+
+msgctxt "mclash"
+msgid "Route table 166 is already in use"
+msgstr "路由表 166 已被占用"
+
+msgctxt "mclash"
+msgid "Router"
+msgstr "本机"
+
+msgctxt "mclash"
+msgid "Rule"
+msgstr "规则"
+
+msgctxt "mclash"
+msgid "Rule management"
+msgstr "规则管理"
+
+msgctxt "mclash"
+msgid "Rule or geographic databases are unavailable; check resources and network connectivity"
+msgstr "规则或地理数据库资源不可用，请先检查资源与网络"
+
+msgctxt "mclash"
+msgid "Rule provider"
+msgstr "规则集"
+
+msgctxt "mclash"
+msgid "Rule provider configuration must be a mapping"
+msgstr "规则集配置必须是映射"
+
+msgctxt "mclash"
+msgid "Rule provider management"
+msgstr "规则集管理"
+
+msgctxt "mclash"
+msgid "Rule provider name already exists"
+msgstr "规则集名称已存在"
+
+msgctxt "mclash"
+msgid "Rule provider path is already in use"
+msgstr "规则集文件路径已被使用"
+
+msgctxt "mclash"
+msgid "Rule target does not exist; select a valid node or proxy group"
+msgstr "规则目标不存在，请选择有效的节点或代理组"
+
+msgctxt "mclash"
+msgid "Running"
+msgstr "运行中"
+
+msgctxt "mclash"
+msgid "Runtime configuration"
+msgstr "运行配置"
+
+msgctxt "mclash"
+msgid "SHA256 mismatch; existing core unchanged"
+msgstr "SHA256 不匹配，旧内核未修改"
+
+msgctxt "mclash"
+msgid "SS node port is missing"
+msgstr "SS 节点缺少端口"
+
+msgctxt "mclash"
+msgid "SS obfs mode must be http or tls"
+msgstr "SS obfs 模式必须是 http 或 tls"
+
+msgctxt "mclash"
+msgid "SS plugin only supports WebSocket mode"
+msgstr "SS 插件仅支持 WebSocket 模式"
+
+msgctxt "mclash"
+msgid "Save"
+msgstr "保存"
+
+msgctxt "mclash"
+msgid "Select a valid source, behavior and format"
+msgstr "请选择有效的来源、行为和格式"
+
+msgctxt "mclash"
+msgid "Select at least one LAN interface"
+msgstr "至少选择一个局域网设备"
+
+msgctxt "mclash"
+msgid "Select at least one node on each side"
+msgstr "请在两侧分别选择至少一个节点"
+
+msgctxt "mclash"
+msgid "Select at least one target node"
+msgstr "请至少选择一个作用节点"
+
+msgctxt "mclash"
+msgid "Select saved proxy nodes again"
+msgstr "请重新选择已保存的代理节点"
+
+msgctxt "mclash"
+msgid "Selected node no longer exists; select it again"
+msgstr "所选节点已不存在，请重新选择"
+
+msgctxt "mclash"
+msgid "Service already running"
+msgstr "服务已运行"
+
+msgctxt "mclash"
+msgid "Service is starting or exiting; retry the core update later"
+msgstr "服务正在启动或退出，请稍后再更新内核"
+
+msgctxt "mclash"
+msgid "Service is starting or exiting; stop it before changing the configuration"
+msgstr "服务正在启动或退出，请先停止服务再修改配置"
+
+msgctxt "mclash"
+msgid "Service is stopped; it will remain stopped after the update…"
+msgstr "服务已停止，更新后保持停止…"
+
+msgctxt "mclash"
+msgid "Service operation failed"
+msgstr "服务操作失败"
+
+msgctxt "mclash"
+msgid "Service stop timed out; check the log"
+msgstr "服务停止超时，请查看日志"
+
+msgctxt "mclash"
+msgid "Service stopped"
+msgstr "服务已停止"
+
+msgctxt "mclash"
+msgid "Source"
+msgstr "来源"
+
+msgctxt "mclash"
+msgid "Specify 1 to 16 LAN interfaces"
+msgstr "请指定 1 至 16 个局域网设备"
+
+msgctxt "mclash"
+msgid "Start / stop"
+msgstr "点击启停"
+
+msgctxt "mclash"
+msgid "Start the proxy first."
+msgstr "请先启动代理。"
+
+msgctxt "mclash"
+msgid "Starting and checking the new core…"
+msgstr "正在启动并检查新内核…"
+
+msgctxt "mclash"
+msgid "Starting update task…"
+msgstr "正在启动更新任务…"
+
+msgctxt "mclash"
+msgid "Startup complete, capture mode:"
+msgstr "启动完成，接管方式："
+
+msgctxt "mclash"
+msgid "Startup failed: Mihomo core is missing"
+msgstr "启动失败：Mihomo 内核不存在"
+
+msgctxt "mclash"
+msgid "Startup failed: configuration is empty or missing"
+msgstr "启动失败：配置文件为空或不存在"
+
+msgctxt "mclash"
+msgid "Startup failed; restoring the previous core"
+msgstr "启动失败，正在恢复旧内核"
+
+msgctxt "mclash"
+msgid "Stop failed: capture or controller cleanup is incomplete"
+msgstr "停止失败：接管或控制接口清理不完整"
+
+msgctxt "mclash"
+msgid "Stop the proxy before changing the configuration"
+msgstr "请先停止代理，再修改配置"
+
+msgctxt "mclash"
+msgid "Stop the proxy before changing the configuration."
+msgstr "请先停止代理，再修改配置。"
+
+msgctxt "mclash"
+msgid "Stopped"
+msgstr "未运行"
+
+msgctxt "mclash"
+msgid "Stopping service; it will resume after the update…"
+msgstr "正在停止服务，更新后恢复运行…"
+
+msgctxt "mclash"
+msgid "Subscription"
+msgstr "机场 "
+
+msgctxt "mclash"
+msgid "Subscription ${i + 1} has a node without a name or type"
+msgstr "第 ${i + 1} 个订阅节点缺少名称或类型"
+
+msgctxt "mclash"
+msgid "Subscription ${i + 1} has duplicate node names"
+msgstr "第 ${i + 1} 个订阅节点名称重复"
+
+msgctxt "mclash"
+msgid "Subscription ${i + 1} has no embedded proxies"
+msgstr "第 ${i + 1} 个订阅没有可内置的 proxies 节点"
+
+msgctxt "mclash"
+msgid "Subscription %s has a node without a name or type"
+msgstr "第 %s 个订阅节点缺少名称或类型"
+
+msgctxt "mclash"
+msgid "Subscription %s has duplicate node names"
+msgstr "第 %s 个订阅节点名称重复"
+
+msgctxt "mclash"
+msgid "Subscription %s has no embedded proxies"
+msgstr "第 %s 个订阅没有可内置的 proxies 节点"
+
+msgctxt "mclash"
+msgid "Subscription URL"
+msgstr "订阅链接"
+
+msgctxt "mclash"
+msgid "Subscription URL is missing"
+msgstr "缺少订阅地址"
+
+msgctxt "mclash"
+msgid "Subscription URL is too long"
+msgstr "订阅地址过长"
+
+msgctxt "mclash"
+msgid "Subscription URL must use HTTP or HTTPS"
+msgstr "订阅地址须为 HTTP 或 HTTPS"
+
+msgctxt "mclash"
+msgid "Subscription URLs must use HTTP or HTTPS"
+msgstr "订阅链接须为 HTTP 或 HTTPS"
+
+msgctxt "mclash"
+msgid "Subscription content is empty or too large"
+msgstr "订阅内容为空或过大"
+
+msgctxt "mclash"
+msgid "Subscription download failed, timed out or exceeded 1 MiB; try another URL"
+msgstr "订阅下载失败、超时或超过 1 MiB，可更换链接重试"
+
+msgctxt "mclash"
+msgid "Subscription fetch cancelled"
+msgstr "订阅拉取已取消"
+
+msgctxt "mclash"
+msgid "Subscription has no embedded proxies; use a Mihomo subscription containing nodes"
+msgstr "订阅没有可内置的 proxies 节点，请使用包含节点的 Mihomo 订阅"
+
+msgctxt "mclash"
+msgid "Subscription name"
+msgstr "机场名称"
+
+msgctxt "mclash"
+msgid "Subscription names and URLs must be unique"
+msgstr "机场名称和订阅链接不能重复"
+
+msgctxt "mclash"
+msgid "Subscription node is missing a name or type"
+msgstr "订阅节点缺少名称或类型"
+
+msgctxt "mclash"
+msgid "Subscription node name conflicts with a default policy"
+msgstr "订阅节点名称与默认策略冲突"
+
+msgctxt "mclash"
+msgid "Subscriptions"
+msgstr "机场订阅"
+
+msgctxt "mclash"
+msgid "Supports VMess, VLESS, Trojan, SS, Hysteria2, TUIC, AnyTLS, SOCKS5 and HTTP/HTTPS node URLs"
+msgstr "支持 VMess、VLESS、Trojan、SS、Hysteria2、TUIC、AnyTLS、SOCKS5、HTTP/HTTPS 节点链接"
+
+msgctxt "mclash"
+msgid "Switch between browser and router"
+msgstr "点击切换浏览器／路由器"
+
+msgctxt "mclash"
+msgid "System stack"
+msgstr "系统协议栈"
+
+msgctxt "mclash"
+msgid "TUIC v5 requires a UUID and password"
+msgstr "TUIC v5 需要 UUID 和密码"
+
+msgctxt "mclash"
+msgid "TUN device Mclash is already in use"
+msgstr "TUN 设备 Mclash 已被占用"
+
+msgctxt "mclash"
+msgid "TUN requires kmod-tun and /dev/net/tun"
+msgstr "TUN 需要 kmod-tun 和 /dev/net/tun"
+
+msgctxt "mclash"
+msgid "TUN stack"
+msgstr "TUN 协议栈"
+
+msgctxt "mclash"
+msgid "Target nodes"
+msgstr "作用节点"
+
+msgctxt "mclash"
+msgid "Target nodes must not include front or back nodes"
+msgstr "作用节点不能包含前置或后置节点"
+
+msgctxt "mclash"
+msgid "Telegram connection"
+msgstr "Telegram 连接"
+
+msgctxt "mclash"
+msgid "Test URL"
+msgstr "测速地址"
+
+msgctxt "mclash"
+msgid "Test failed"
+msgstr "检测失败"
+
+msgctxt "mclash"
+msgid "Test interval (seconds)"
+msgstr "测速间隔（秒）"
+
+msgctxt "mclash"
+msgid "Testing…"
+msgstr "检测中…"
+
+msgctxt "mclash"
+msgid "The configuration must not be empty"
+msgstr "配置不能为空"
+
+msgctxt "mclash"
+msgid "The configuration must not exceed 1 MiB"
+msgstr "配置不能超过 1 MiB"
+
+msgctxt "mclash"
+msgid "The current operation is not a subscription fetch"
+msgstr "当前操作不是订阅拉取"
+
+msgctxt "mclash"
+msgid "The dashboard requires a controller accessible from the LAN."
+msgstr "面板需要可从局域网访问的控制接口。"
+
+msgctxt "mclash"
+msgid "The interval must be a non-negative integer"
+msgstr "间隔须为非负整数"
+
+msgctxt "mclash"
+msgid "The nftables mclash table is already in use"
+msgstr "nftables 的 mclash 表已被占用"
+
+msgctxt "mclash"
+msgid "The uploaded file must not exceed 128 MiB."
+msgstr "上传文件不能超过 128 MiB。"
+
+msgctxt "mclash"
+msgid "This group is still referenced by rules, groups or chains; update those references first"
+msgstr "此组仍被规则、其他代理组或链路引用，请先修改引用"
+
+msgctxt "mclash"
+msgid "This provider is still referenced; edit or delete the corresponding RULE-SET rules first"
+msgstr "该规则集仍被规则引用，请先修改或删除对应的 RULE-SET 规则"
+
+msgctxt "mclash"
+msgid "Toggles must be boolean"
+msgstr "开关须为布尔值"
+
+msgctxt "mclash"
+msgid "Type"
+msgstr "类型"
+
+msgctxt "mclash"
+msgid "URL contains unsupported parameters; import YAML configuration instead"
+msgstr "链接包含暂不支持的参数，请使用 YAML 配置导入"
+
+msgctxt "mclash"
+msgid "Unable to back up the existing core"
+msgstr "无法备份旧内核"
+
+msgctxt "mclash"
+msgid "Unable to create core staging file"
+msgstr "无法创建内核暂存文件"
+
+msgctxt "mclash"
+msgid "Unable to create download file"
+msgstr "无法创建下载文件"
+
+msgctxt "mclash"
+msgid "Unable to create response file"
+msgstr "无法创建响应文件"
+
+msgctxt "mclash"
+msgid "Unable to create subscription header file"
+msgstr "无法创建订阅响应头文件"
+
+msgctxt "mclash"
+msgid "Unable to create temporary configuration"
+msgstr "无法创建临时配置"
+
+msgctxt "mclash"
+msgid "Unable to create update directory"
+msgstr "无法创建更新目录"
+
+msgctxt "mclash"
+msgid "Unable to identify subscription node ownership; update all subscriptions first"
+msgstr "无法识别机场节点归属，请先更新全部机场"
+
+msgctxt "mclash"
+msgid "Unable to read service state; existing core unchanged"
+msgstr "无法读取服务状态，旧内核未修改"
+
+msgctxt "mclash"
+msgid "Unable to remove previous capture rules"
+msgstr "无法清理旧接管规则"
+
+msgctxt "mclash"
+msgid "Unable to start update task"
+msgstr "无法启动更新任务"
+
+msgctxt "mclash"
+msgid "Unknown"
+msgstr "未知"
+
+msgctxt "mclash"
+msgid "Unknown probe target"
+msgstr "未知检测站点"
+
+msgctxt "mclash"
+msgid "Unknown version"
+msgstr "未知版本"
+
+msgctxt "mclash"
+msgid "Unlimited"
+msgstr "不限"
+
+msgctxt "mclash"
+msgid "Unsupported Hysteria2 obfuscation type"
+msgstr "暂不支持此 Hysteria2 混淆类型"
+
+msgctxt "mclash"
+msgid "Unsupported SS encryption method"
+msgstr "暂不支持此 SS 加密方法"
+
+msgctxt "mclash"
+msgid "Unsupported SS plugin parameter"
+msgstr "暂不支持此 SS 插件参数"
+
+msgctxt "mclash"
+msgid "Unsupported SS plugin; import YAML configuration instead"
+msgstr "暂不支持此 SS 插件，请使用 YAML 配置导入"
+
+msgctxt "mclash"
+msgid "Unsupported TCP camouflage type: $type"
+msgstr "暂不支持 TCP 伪装类型：$type"
+
+msgctxt "mclash"
+msgid "Unsupported TCP camouflage type: %s"
+msgstr "暂不支持 TCP 伪装类型：%s"
+
+msgctxt "mclash"
+msgid "Unsupported VLESS encryption type"
+msgstr "暂不支持此 VLESS 加密类型"
+
+msgctxt "mclash"
+msgid "Unsupported VMess TLS type: $tls"
+msgstr "暂不支持 VMess TLS 类型：$tls"
+
+msgctxt "mclash"
+msgid "Unsupported VMess TLS type: %s"
+msgstr "暂不支持 VMess TLS 类型：%s"
+
+msgctxt "mclash"
+msgid "Unsupported VMess transport type: $network"
+msgstr "暂不支持 VMess 传输类型：$network"
+
+msgctxt "mclash"
+msgid "Unsupported VMess transport type: %s"
+msgstr "暂不支持 VMess 传输类型：%s"
+
+msgctxt "mclash"
+msgid "Unsupported capture operation"
+msgstr "不支持的接管操作"
+
+msgctxt "mclash"
+msgid "Unsupported configuration operation"
+msgstr "不支持的配置操作"
+
+msgctxt "mclash"
+msgid "Unsupported gRPC mode"
+msgstr "暂不支持此 gRPC 模式"
+
+msgctxt "mclash"
+msgid "Unsupported node security type"
+msgstr "暂不支持此节点安全类型"
+
+msgctxt "mclash"
+msgid "Unsupported node transport; import YAML configuration instead"
+msgstr "暂不支持此节点传输类型，请使用 YAML 配置导入"
+
+msgctxt "mclash"
+msgid "Unsupported operation"
+msgstr "不支持的操作"
+
+msgctxt "mclash"
+msgid "Unsupported transport camouflage type"
+msgstr "暂不支持此传输伪装类型"
+
+msgctxt "mclash"
+msgid "Update"
+msgstr "更新"
+
+msgctxt "mclash"
+msgid "Update core"
+msgstr "更新内核"
+
+msgctxt "mclash"
+msgid "Update interval (seconds)"
+msgstr "更新间隔（秒）"
+
+msgctxt "mclash"
+msgid "Update interval must be a non-negative integer"
+msgstr "更新间隔必须是非负整数"
+
+msgctxt "mclash"
+msgid "Update task interrupted"
+msgstr "更新任务被中断"
+
+msgctxt "mclash"
+msgid "Update task started"
+msgstr "更新任务已启动"
+
+msgctxt "mclash"
+msgid "Upload a Linux Mihomo ELF executable or an official .gz file"
+msgstr "请上传 Linux Mihomo ELF 程序或官方 .gz 文件"
+
+msgctxt "mclash"
+msgid "Upload a core file first"
+msgstr "请先上传内核文件"
+
+msgctxt "mclash"
+msgid "Upload update"
+msgstr "上传更新"
+
+msgctxt "mclash"
+msgid "Uploaded file exceeds 128 MiB"
+msgstr "上传文件超过 128 MiB"
+
+msgctxt "mclash"
+msgid "VMess $key must be an integer"
+msgstr "VMess $key 必须是整数"
+
+msgctxt "mclash"
+msgid "VMess %s must be an integer"
+msgstr "VMess %s 必须是整数"
+
+msgctxt "mclash"
+msgid "VMess HTTP / WS Host"
+msgstr "VMess HTTP / WS Host"
+
+msgctxt "mclash"
+msgid "Vision requires TLS/Reality and TCP transport"
+msgstr "Vision 需要 TLS/Reality 和 TCP 传输"
+
+msgctxt "mclash"
+msgid "When Proxy LAN devices is disabled, only the listed IPs / ranges are captured. Other devices connect directly. When enabled, all devices on the selected LAN interfaces are captured."
+msgstr "关闭“代理局域网设备”时，仅代理下列 IP／范围；其余设备保持直连。开启时代理所选局域网设备的全部流量。"
+
+msgctxt "mclash"
+msgid "YouTube connection"
+msgstr "YouTube 连接"
+
+msgctxt "mclash"
+msgid "firewall4 auto_includes is disabled"
+msgstr "firewall4 auto_includes 已禁用"
+
+msgctxt "mclash"
+msgid "firewall4 is not running"
+msgstr "firewall4 尚未运行"
+
+msgctxt "mclash"
+msgid "installed; service is running again"
+msgstr "已安装，服务已恢复运行"
+
+msgctxt "mclash"
+msgid "installed; service remains stopped"
+msgstr "已安装，服务保持停止"
+
+msgctxt "mclash"
+msgid "nftables validation failed; check that kmod-nft-tproxy and required modules are installed"
+msgstr "nftables 校验失败，请确认 kmod-nft-tproxy 等模块已安装"
+
+msgctxt "mclash"
+msgid "· Configured"
+msgstr " · 已配置"
+
+msgctxt "mclash"
+msgid "· Configured · Inactive"
+msgstr " · 已配置 · 未生效"
+
+msgctxt "mclash"
+msgid "· Enabled"
+msgstr " · 已启用"
+
+msgctxt "mclash"
+msgid "● Click again to stop"
+msgstr "● 再次点击停止"
+
+msgctxt "mclash"
+msgid "● Running"
+msgstr "● 运行中"
+
+msgctxt "mclash"
+msgid "● Stopped"
+msgstr "● 未运行"
+
+
+
+
+
+msgctxt "mclash"
+msgid "Domestic"
+msgstr "国内"
+
+msgctxt "mclash"
+msgid "Foreign"
+msgstr "国外"
+
+msgctxt "mclash"
+msgid "Startup complete, capture mode: %s"
+msgstr "启动完成，接管方式：%s"
+
+msgctxt "mclash"
+msgid "Core exited unexpectedly, exit code=%s"
+msgstr "内核意外退出，退出码=%s"
+
+msgctxt "mclash"
+msgid "Failed: %s"
+msgstr "失败：%s"
+
+msgctxt "mclash"
+msgid "Proxy scope: router traffic=%s, LAN devices=%s, IPv6=%s; interfaces: %s"
+msgstr "代理范围：代理本机=%s，代理局域网设备=%s，IPv6=%s；接口：%s"
+
+msgctxt "mclash"
+msgid "Access control: IPv4=%s; IPv6=%s"
+msgstr "访问控制：IPv4=%s；IPv6=%s"
+
+msgctxt "mclash"
+msgid "none"
+msgstr "关闭自动接管"
+
+msgctxt "mclash"
+msgid "Controller port is already in use; change external-controller"
+msgstr "控制端口已被占用，请修改监听地址与端口"
+
+msgctxt "mclash"
+msgid "DNS 1053 or TProxy 7893 is already in use"
+msgstr "DNS 1053 或 TProxy 7893 端口已被占用"
+
+msgctxt "mclash"
+msgid "Capture listener readiness failed"
+msgstr "接管监听未就绪"
+
+msgctxt "mclash"
+msgid "Failed to create configuration language copy"
+msgstr "无法创建配置语言临时文件"
+
+msgctxt "mclash"
+msgid "Failed to migrate configuration language"
+msgstr "配置语言转换失败"
+
+msgctxt "mclash"
+msgid "Failed to save configuration language"
+msgstr "保存配置语言失败"

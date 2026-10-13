@@ -49,11 +49,13 @@ mkdir -p "$package_dir"
 python3 "$client_root/luci-app-mclash/tests/backend_test.py"
 python3 "$client_root/luci-app-mclash/tests/timeout_test.py"
 python3 "$client_root/luci-app-mclash/tests/init_test.py"
+python3 "$client_root/luci-app-mclash/tests/config_language_test.py"
 python3 "$client_root/luci-app-mclash/tests/probe_test.py"
 node "$client_root/luci-app-mclash/tests/frontend_test.js"
 node "$client_root/luci-app-mclash/tests/management_ui_test.js"
 node "$client_root/luci-app-mclash/tests/browser_probe_test.js"
 node "$client_root/luci-app-mclash/tests/overrides_test.js"
+node "$client_root/luci-app-mclash/tests/i18n_test.js"
 rsync -a --delete --exclude dist --exclude .build-logs --exclude tests --exclude __pycache__ \
   "$client_root/luci-app-mclash/" "$package_dir/"
 sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$app_version/;s/^PKG_RELEASE:=.*/PKG_RELEASE:=$build_number/" "$package_dir/Makefile"
@@ -72,9 +74,19 @@ sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$app_version/;s/^PKG_RELEASE:=.*/PKG_REL
     ./scripts/feeds install -a
   fi
   [[ -f feeds/luci/luci.mk ]] || { echo 'SDK LuCI feed is missing' >&2; exit 1; }
+  if [[ ! -x staging_dir/hostpkg/bin/po2lmo && ! -x staging_dir/host/bin/po2lmo ]]; then
+    po_tools="$cache_root/po-tools-$target"
+    mkdir -p "$po_tools"
+    cp -a feeds/luci/modules/luci-base/src/. "$po_tools/"
+    make -C "$po_tools" po2lmo CC=cc
+    mkdir -p staging_dir/hostpkg/bin
+    cp "$po_tools/po2lmo" staging_dir/hostpkg/bin/po2lmo
+  fi
   touch .config
   sed -i '/^CONFIG_PACKAGE_luci-app-mclash=/d;/^# CONFIG_PACKAGE_luci-app-mclash is not set$/d' .config
   printf '\nCONFIG_PACKAGE_luci-app-mclash=m\n' >> .config
+  sed -i '/^CONFIG_LUCI_LANG_zh_Hans=/d;/^# CONFIG_LUCI_LANG_zh_Hans is not set$/d;/^CONFIG_PACKAGE_luci-i18n-mclash-zh-cn=/d;/^# CONFIG_PACKAGE_luci-i18n-mclash-zh-cn is not set$/d' .config
+  printf '\nCONFIG_LUCI_LANG_zh_Hans=m\nCONFIG_PACKAGE_luci-i18n-mclash-zh-cn=m\n' >> .config
   make defconfig
   make package/luci-app-mclash/clean V=s
   if [[ "${MCLASH_PACKAGE_ONLY:-0}" == 1 ]]; then
@@ -87,3 +99,4 @@ export MCLASH_PACKAGE_VERSION="$app_version-r$build_number"
 export MCLASH_OUTPUT_DIR="$client_root/dist"
 export MCLASH_METADATA_DIR="$client_root/.build-logs"
 python3 "$client_root/luci-app-mclash/tests/package_check.py" "$client_root/luci-app-mclash" "$sdk" "$target"
+python3 "$client_root/luci-app-mclash/tests/translation_package_check.py" "$sdk" "$target"

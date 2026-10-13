@@ -18,12 +18,12 @@ class LogTest(unittest.TestCase):
     def call(self, op, text=None):
         return subprocess.run(['busybox', 'ash', str(self.helper), op] + ([] if text is None else [text]), capture_output=True, text=True, timeout=15)
     def test_large_stream_is_bounded_and_keeps_recent_lines(self):
-        payload = ''.join(str(i) + 'x' * 9000 + '\n' for i in range(90)) + 'recent 中文\n'
+        payload = ''.join(str(i) + 'x' * 9000 + '\n' for i in range(90)) + 'recent \u4e2d\u6587\n'
         result = subprocess.run(['busybox', 'ash', str(self.helper), 'stream-core'], input=payload, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0)
         log = self.logs / 'mihomo.log'
         self.assertLessEqual(log.stat().st_size, 524288)
-        self.assertIn('recent 中文', log.read_text())
+        self.assertIn('recent \u4e2d\u6587', log.read_text())
         self.assertEqual(log.stat().st_mode & 0o777, 0o600)
     def test_all_log_categories_trim_and_clear_independently(self):
         self.logs.mkdir()
@@ -65,14 +65,14 @@ class LogTest(unittest.TestCase):
         self.assertEqual(victim.read_text(), 'keep')
 
     def test_service_separator_is_last_line_and_keeps_history(self):
-        self.call('append-service', '启动完成')
+        self.call('append-service', 'Startup complete')
         self.assertEqual(self.call('separator-service').returncode, 0)
-        self.call('append-service', '服务进程退出，清理完成')
+        self.call('append-service', 'Service stopped')
         self.assertEqual(self.call('separator-service').returncode, 0)
         lines = (self.logs / 'mclash.log').read_text().splitlines()
-        self.assertIn('启动完成', lines[0])
+        self.assertIn('Startup complete', lines[0])
         self.assertEqual(lines[1], '-' * 60)
-        self.assertIn('清理完成', lines[2])
+        self.assertIn('Service stopped', lines[2])
         self.assertEqual(lines[-1], '-' * 60)
 
 if __name__ == '__main__': unittest.main()

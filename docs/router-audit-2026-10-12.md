@@ -1,36 +1,29 @@
-# 路由器测试记录：2026-10-12
+# Router test record: 2026-10-12
 
-环境：OpenWrt 25.12.5、arm64、插件 1.0.1-r1、Mihomo 1.19.32。测试前备份配置、核心和日志；测试后恢复原始配置和核心，保留启动修复，维持原来的自启关闭设置。
+Environment: OpenWrt 25.12.5, arm64, application 1.0.1-r1, Mihomo 1.19.32. Configuration, core and logs were backed up before testing and restored afterward. Startup fixes were retained; autostart remained disabled.
 
-## 实机验证
+## On-device checks
 
-| 功能 | 结果 |
+| Feature | Result |
 | --- | --- |
-| 启动、停止、配置校验、自启启用及关闭 | 通过；无效 YAML 拒绝保存，原配置不变 |
-| 订阅更新、空闲取消、设备列表 | 通过；取消不再产生 shell 错误 |
-| 手动节点、Host、代理组、规则集、规则、链路 | 创建、保存、校验、删除通过；被引用代理组拒绝删除 |
-| TUN mixed/system/gvisor | 启动通过，HTTPS 返回 200 |
-| TProxy、关闭自动接管 | 启动通过，代理 HTTPS 返回 200，停止清理接管规则 |
-| 路由器六站连通性检查 | 六项通过 |
-| 控制器 configs/proxies/connections、direct/global/rule | 通过 |
-| 核心、服务、更新日志读取及清空 | 通过，检查后恢复日志 |
-| 核心版本检查与在线更新 | 已是最新版本分支通过 |
-| 本地核心更新与错误上传 | 当前真实核心校验、替换通过；错误 ELF 拒绝，原核心不变 |
-| 防火墙配置检查 | fw4 check 通过 |
+| Start, stop, configuration validation and autostart toggles | Passed; invalid YAML rejected without modifying the original |
+| Subscription updates, idle cancellation and device enumeration | Passed; cancellation no longer produces shell errors |
+| Manual nodes, Host, groups, providers, rules and chains | Creation, saving, validation and removal passed; referenced groups cannot be deleted |
+| TUN mixed/system/gvisor | Started successfully; HTTPS returned 200 |
+| TProxy and disabled capture | Started successfully; proxy HTTPS returned 200; stop removed capture rules |
+| Six router connectivity probes | All passed |
+| Controller configs/proxies/connections and direct/global/rule modes | Passed |
+| Core, service and update logs | Reading/clearing passed; logs restored afterward |
+| Core release check and online update | Already-up-to-date branch passed |
+| Local core update and invalid uploads | Real core validation/replacement passed; invalid ELF rejected without modifying the original |
+| Firewall configuration | fw4 check passed |
 
-实机修复三个问题：init 脚本遗漏替换系统 timeout；空闲取消订阅读取不存在锁文件时输出错误；无 stat 时无主锁无法恢复。修复已部署并纳入本地安装包。
+Three issues were fixed on-device: the init script still used the system timeout command; idle subscription cancellation printed an error when the lock file did not exist; a lock without an owner could not be recovered without stat. Fixes were deployed and included in the local packages.
 
-WAN 测试中反复关闭的原因已由用户确认是手动操作。本机 Wi-Fi 和有线 IPv4/IPv6 路由 metric 分别固定为 50、2000，WAN 在线时已验证互联网访问仍走 Wi-Fi。这属于本机连接配置，重连和重启后保留。
+Repeated WAN disconnections during testing were confirmed by the user as manual actions. Local Wi-Fi and wired IPv4/IPv6 route metrics were set to 50 and 2000 respectively. Internet access continued through Wi-Fi while WAN was online. These local connection settings persist after reconnects and reboots.
 
-## 自动化验证
+## Automated checks
 
-51 项 Python 检查通过：后端 16、超时 4、init 3、探测 6、更新 7、日志 4、网络集成 11。前端、浏览器探测、共享覆写 JavaScript 检查通过。两种 SDK 构建及安装包内容、权限和 SHA256 校验通过。
+51 Python checks passed: backend 16, timeout 4, init 3, probes 6, update 7, logs 4, network integration 11. Frontend, browser probes and shared configuration JavaScript checks passed. Both SDK builds and package contents, permissions and SHA256 checks passed.
 
-隔离网络中的真实 Mihomo 集成检查覆盖 TCP/UDP/DNS、TUN 全部协议栈、TProxy、防火墙重载、LAN 本地流量绕过、路由器与 LAN 范围、客户端 ACL、IPv6 禁用、控制器 LAN 访问与密钥保护、退出清理及冲突失败处理。
-
-## 验证限制
-
-- 当前核心已经是最新版本，实机没有执行下载一个更新版本的在线替换；更新和回滚由自动化测试补充覆盖。
-- 客户端 ACL、控制器密钥、IPv6 禁用等组合主要通过隔离网络集成验证，没有逐个在用户所有 LAN 客户端上验证。
-- 未执行路由器整机重启，检查了自启注册、禁用及服务重启行为。
-- 一轮测试不能保证所有网络、订阅和长期运行条件下都没有问题。本轮修复随 v1.0.2 发布，安装包版本为 1.0.2-r1；测试时路由器使用 1.0.1-r1 加相同修复。
+Isolated real-Mihomo integration covered TCP/UDP/DNS, all TUN stacks, TProxy, firewall reload, LAN-local bypass, router/LAN proxy scope, client ACL, disabled IPv6, controller LAN access and secrets, exit cleanup and conflict failures.

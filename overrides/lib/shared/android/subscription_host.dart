@@ -17,12 +17,12 @@ String readSubscriptionHost(String content) {
 String editSubscriptionHost(String content, String value) {
   final host = value.trim();
   if (host.isEmpty || RegExp(r'[\s/\\?#]').hasMatch(host)) {
-    throw const FormatException('请输入 Host 域名或 IP，可带端口，不要填写 URL');
+    throw const FormatException('Enter a Host domain or IP, optionally with a port; do not enter a URL');
   }
   final config = loadYaml(content) as YamlMap;
   final nodes = config['proxies'];
   if (nodes is! YamlList || nodes.isEmpty) {
-    throw const FormatException('配置没有内置节点，请先更新机场订阅');
+    throw const FormatException('Configuration has no embedded nodes; update subscriptions first');
   }
   final editor = YamlEditor(content);
   for (var i = 0; i < nodes.length; i++) {

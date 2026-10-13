@@ -34,6 +34,7 @@ class InitTest(unittest.TestCase):
             '/usr/bin/mihomo': str(core),
             '/usr/libexec/mclash-timeout': str(ROOT / 'root/usr/libexec/mclash-timeout'),
             '/usr/libexec/mclash-log': str(log),
+            '/usr/libexec/mclash-config-language': 'cat',
             '/etc/mclash': str(self.base),
         }.items():
             source = source.replace(old, new)

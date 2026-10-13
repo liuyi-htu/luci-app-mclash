@@ -27,12 +27,12 @@ cleanup() {
  if [ "$SUCCESS" = 0 ] && [ "$STOPPED" = 1 ] && [ "$WAS_RUNNING" = 1 ]; then
   if [ "$SWAPPED" = 0 ]; then
    if "$INIT" start >/dev/null 2>&1 && wait_ready; then
-    progress error 100 "$FAILURE；旧内核已恢复，服务已恢复运行"
+    progress error 100 "$FAILURE; Previous core restored; service is running again"
    else
-    progress error 100 "$FAILURE；旧内核已恢复，但服务恢复失败，请检查日志"
+    progress error 100 "$FAILURE; Previous core restored, but service restart failed; check the log"
    fi
   else
-   progress error 100 "$FAILURE；旧内核恢复失败，请检查日志，备份已保留"
+   progress error 100 "$FAILURE; Failed to restore the previous core; check the log; backup retained"
   fi
  fi
  [ -z "$STAGED" ] || rm -f "$STAGED"
@@ -51,10 +51,10 @@ wait_ready() {
 }
 lock() {
  mkdir -p /var/lock
- mclash_lock_acquire update || { printf '%s\n' '另一个操作正在进行，请稍后重试' >&2; exit 1; }
+ mclash_lock_acquire update || { printf '%s\n' 'Another operation is in progress; retry later' >&2; exit 1; }
  OWN_LOCK=1
  trap cleanup EXIT
- trap 'fail "更新任务被中断"' HUP INT TERM
+ trap 'fail "Update task interrupted"' HUP INT TERM
 }
 core_version() {
  "$TIMEOUT" 5 "$1" -v 2>/dev/null | awk '$1 == "Mihomo" && $2 == "Meta" {sub(/^v/,"",$3); print $3; exit}'
@@ -63,123 +63,123 @@ newer() {
  awk -v a="$1" -v b="$2" 'BEGIN {split(a,x,".");split(b,y,".");for(i=1;i<=3;i++){if(x[i]+0>y[i]+0)exit 0;if(x[i]+0<y[i]+0)exit 1}exit 1}'
 }
 metadata() {
- WORK="$(mktemp -d /tmp/mclash-update.XXXXXX)" || fail '无法创建更新目录'
+ WORK="$(mktemp -d /tmp/mclash-update.XXXXXX)" || fail 'Unable to create update directory'
  "$CURL" -fLsS --max-time 20 --max-filesize 4194304 --proto '=https' --proto-redir '=https' \
-  https://api.github.com/repos/MetaCubeX/mihomo/releases/latest -o "$WORK/release.json" 2>/dev/null || fail '查询官方 Release 失败，请检查网络或 GitHub 限流'
+  https://api.github.com/repos/MetaCubeX/mihomo/releases/latest -o "$WORK/release.json" 2>/dev/null || fail 'Failed to query the official release; check network connectivity or GitHub rate limits'
  LATEST="$(jsonfilter -i "$WORK/release.json" -e '@.tag_name')"
- printf '%s\n' "$LATEST" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Release 版本格式无效'
+ printf '%s\n' "$LATEST" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Invalid release version format'
  CURRENT="$(core_version "$CORE")"
 }
 case "${1:-}" in
  status)
-  [ ! -f "$STATE" ] && printf 'idle\t0\t尚未开始更新。\n' || cat "$STATE"
+  [ ! -f "$STATE" ] && printf 'idle\t0\tNo update has started.\n' || cat "$STATE"
   exit 0 ;;
  check)
   lock; metadata
   available=0; [ -n "$CURRENT" ] && ! newer "${LATEST#v}" "$CURRENT" || available=1
   SUCCESS=1
-  printf '%s\t%s\t%s\n' "${CURRENT:-未安装}" "$LATEST" "$available"
+  printf '%s\t%s\t%s\n' "${CURRENT:-Not installed}" "$LATEST" "$available"
   exit 0 ;;
  online|local)
   lock
-  [ "$1" != local ] || { [ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] && [ -s "$UPLOAD" ]; } || fail '请先上传内核文件'
-  progress running 1 '正在启动更新任务…'
-  /sbin/start-stop-daemon -S -b -O /dev/null -x /usr/libexec/mclash-update -- "worker-$1" claimed || fail '无法启动更新任务'
+  [ "$1" != local ] || { [ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] && [ -s "$UPLOAD" ]; } || fail 'Upload a core file first'
+  progress running 1 'Starting update task…'
+  /sbin/start-stop-daemon -S -b -O /dev/null -x /usr/libexec/mclash-update -- "worker-$1" claimed || fail 'Unable to start update task'
   OWN_LOCK=0
-  printf '%s\n' '更新任务已启动'
+  printf '%s\n' 'Update task started'
   exit 0 ;;
  worker-online|worker-local)
   [ "${2:-}" = claimed ] && [ -d "$LOCK" ] || exit 1
   OWN_LOCK=1
   mclash_lock_claim update
   trap cleanup EXIT
-  trap 'fail "更新任务被中断"' HUP INT TERM ;;
+  trap 'fail "Update task interrupted"' HUP INT TERM ;;
  *) exit 1 ;;
 esac
 mode="$1"
 if [ "$mode" = worker-online ]; then
- progress running 10 '正在查询官方稳定版本…'
+ progress running 10 'Checking the official stable release…'
  metadata
  if [ -n "$CURRENT" ] && ! newer "${LATEST#v}" "$CURRENT"; then
-  SUCCESS=1; progress success 100 '当前已是最新版本'; exit 0
+  SUCCESS=1; progress success 100 'Already up to date'; exit 0
  fi
  case "$(uname -m)" in
   aarch64|arm64) arch=arm64 ;;
   x86_64|amd64) arch=amd64-compatible ;;
   armv7*) arch=armv7 ;;
   i386|i486|i586|i686) arch=386 ;;
-  *) fail '暂不支持此架构的在线选择，请上传对应的官方内核' ;;
+  *) fail 'Online selection is unavailable for this architecture; upload the matching official core' ;;
  esac
  asset="mihomo-linux-$arch-$LATEST.gz"
  url="$(jsonfilter -i "$WORK/release.json" -e "@.assets[@.name='$asset'].browser_download_url")"
  digest="$(jsonfilter -i "$WORK/release.json" -e "@.assets[@.name='$asset'].digest")"
- case "$url" in "https://github.com/MetaCubeX/mihomo/releases/download/$LATEST/$asset") ;; *) fail '官方 Release 缺少对应架构文件' ;; esac
+ case "$url" in "https://github.com/MetaCubeX/mihomo/releases/download/$LATEST/$asset") ;; *) fail 'Official release has no asset for this architecture' ;; esac
  checksum="${digest#sha256:}"
- printf '%s\n' "$checksum" | grep -Eq '^[a-fA-F0-9]{64}$' || fail '官方 Release 未提供有效 SHA256，拒绝覆盖内核'
- progress running 35 '正在下载对应架构的 Mihomo…'
- "$CURL" -fLsS --max-time 180 --max-filesize 67108864 --proto '=https' --proto-redir '=https' "$url" -o "$WORK/core.gz" 2>/dev/null || fail '内核下载失败，旧内核未修改'
- [ "$(sha256sum "$WORK/core.gz" | awk '{print $1}')" = "$(printf '%s' "$checksum" | tr A-F a-f)" ] || fail 'SHA256 不匹配，旧内核未修改'
+ printf '%s\n' "$checksum" | grep -Eq '^[a-fA-F0-9]{64}$' || fail 'Official release has no valid SHA256; refusing to replace the core'
+ progress running 35 'Downloading Mihomo for this architecture…'
+ "$CURL" -fLsS --max-time 180 --max-filesize 67108864 --proto '=https' --proto-redir '=https' "$url" -o "$WORK/core.gz" 2>/dev/null || fail 'Core download failed; existing core unchanged'
+ [ "$(sha256sum "$WORK/core.gz" | awk '{print $1}')" = "$(printf '%s' "$checksum" | tr A-F a-f)" ] || fail 'SHA256 mismatch; existing core unchanged'
  input="$WORK/core.gz"
 else
- WORK="$(mktemp -d /tmp/mclash-update.XXXXXX)" || fail '无法创建更新目录'
- [ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] && [ -s "$UPLOAD" ] || fail '上传文件无效'
- [ "$(wc -c < "$UPLOAD")" -le 134217728 ] || fail '上传文件超过 128 MiB'
- cp "$UPLOAD" "$WORK/upload" || fail '读取上传文件失败'
+ WORK="$(mktemp -d /tmp/mclash-update.XXXXXX)" || fail 'Unable to create update directory'
+ [ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] && [ -s "$UPLOAD" ] || fail 'Invalid uploaded file'
+ [ "$(wc -c < "$UPLOAD")" -le 134217728 ] || fail 'Uploaded file exceeds 128 MiB'
+ cp "$UPLOAD" "$WORK/upload" || fail 'Failed to read uploaded file'
  input="$WORK/upload"
 fi
-progress running 60 '正在检查内核和运行配置…'
+progress running 60 'Checking core and runtime configuration…'
 magic="$(hexdump -v -n 4 -e '1/1 "%02x"' "$input")"
 case "$magic" in
  1f8b*) gzip -dc "$input" 2>/dev/null | head -c 134217729 > "$WORK/mihomo" ;;
  7f454c46) cp "$input" "$WORK/mihomo" ;;
- *) fail '请上传 Linux Mihomo ELF 程序或官方 .gz 文件' ;;
+ *) fail 'Upload a Linux Mihomo ELF executable or an official .gz file' ;;
 esac
-[ -s "$WORK/mihomo" ] && [ "$(wc -c < "$WORK/mihomo")" -le 134217728 ] || fail '解压失败或内核超过 128 MiB'
-[ "$(hexdump -v -n 4 -e '1/1 "%02x"' "$WORK/mihomo")" = 7f454c46 ] || fail '内核文件不是 Linux ELF 程序'
+[ -s "$WORK/mihomo" ] && [ "$(wc -c < "$WORK/mihomo")" -le 134217728 ] || fail 'Decompression failed or core exceeds 128 MiB'
+[ "$(hexdump -v -n 4 -e '1/1 "%02x"' "$WORK/mihomo")" = 7f454c46 ] || fail 'Core file is not a Linux ELF executable'
 chmod 0755 "$WORK/mihomo"
 candidate_version="$(core_version "$WORK/mihomo")"
-printf '%s\n' "$candidate_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' || fail '内核无法运行，请检查 CPU 架构'
+printf '%s\n' "$candidate_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' || fail 'Core cannot run; check the CPU architecture'
 "$TIMEOUT" 45 "$WORK/mihomo" -t -d /etc/mclash -f "$CONFIG" > "$WORK/validation.log" 2>&1
 validation_result=$?
 if [ "$validation_result" != 0 ]; then
- reason='配置或规则资源校验失败'
- case "$validation_result" in 124|137) reason='配置校验超时或内存不足' ;; esac
- grep -qiE 'unsupported|unknown field|not support' "$WORK/validation.log" && reason='新内核不支持当前配置中的功能'
- grep -qiE 'geosite|geoip|download|rule.?provider|no such file|no available' "$WORK/validation.log" && reason='规则或地理数据库资源不可用，请先检查资源与网络'
- grep -qiE 'yaml|unmarshal|parse config' "$WORK/validation.log" && reason='配置 YAML 或字段格式不兼容'
- fail "$reason，旧内核未修改；上传文件已保留，可重试"
+ reason='Configuration or rule resource validation failed'
+ case "$validation_result" in 124|137) reason='Configuration validation timed out or ran out of memory' ;; esac
+ grep -qiE 'unsupported|unknown field|not support' "$WORK/validation.log" && reason='New core does not support features in the current configuration'
+ grep -qiE 'geosite|geoip|download|rule.?provider|no such file|no available' "$WORK/validation.log" && reason='Rule or geographic databases are unavailable; check resources and network connectivity'
+ grep -qiE 'yaml|unmarshal|parse config' "$WORK/validation.log" && reason='Incompatible configuration YAML or field format'
+ fail "$reason, Existing core unchanged; uploaded file retained for retry"
 fi
 [ "$mode" != worker-local ] || rm -f "$UPLOAD"
-STAGED="$(mktemp /usr/bin/.mihomo-new.XXXXXX)" || fail '无法创建内核暂存文件'
-cp "$WORK/mihomo" "$STAGED" && chmod 0755 "$STAGED" || fail '写入内核失败'
+STAGED="$(mktemp /usr/bin/.mihomo-new.XXXXXX)" || fail 'Unable to create core staging file'
+cp "$WORK/mihomo" "$STAGED" && chmod 0755 "$STAGED" || fail 'Failed to write core'
 if [ -f "$CORE" ]; then
- BACKUP="$(mktemp /usr/bin/.mihomo-backup.XXXXXX)" || fail '无法备份旧内核'
- cp -p "$CORE" "$BACKUP" || fail '备份内核失败'
+ BACKUP="$(mktemp /usr/bin/.mihomo-backup.XXXXXX)" || fail 'Unable to back up the existing core'
+ cp -p "$CORE" "$BACKUP" || fail 'Failed to back up core'
 fi
-service_status="$("$UI" status)" || fail '无法读取服务状态，旧内核未修改'
+service_status="$("$UI" status)" || fail 'Unable to read service state; existing core unchanged'
 WAS_RUNNING="$(printf '%s' "$service_status" | jsonfilter -e '@.running')"
 service_active="$(printf '%s' "$service_status" | jsonfilter -e '@.active')"
-case "$WAS_RUNNING" in true|false) ;; *) fail '服务状态无效，旧内核未修改' ;; esac
-[ "$service_active" != true ] || [ "$WAS_RUNNING" = true ] || fail '服务正在启动或退出，请稍后再更新内核'
+case "$WAS_RUNNING" in true|false) ;; *) fail 'Invalid service state; existing core unchanged' ;; esac
+[ "$service_active" != true ] || [ "$WAS_RUNNING" = true ] || fail 'Service is starting or exiting; retry the core update later'
 [ "$WAS_RUNNING" = true ] && WAS_RUNNING=1 || WAS_RUNNING=0
 if [ "$WAS_RUNNING" = 1 ]; then
- progress running 75 '正在停止服务，更新后恢复运行…'
+ progress running 75 'Stopping service; it will resume after the update…'
  STOPPED=1
- "$INIT" stop >/dev/null 2>&1 || fail '停止服务失败'
+ "$INIT" stop >/dev/null 2>&1 || fail 'Failed to stop service'
 else
- progress running 75 '服务已停止，更新后保持停止…'
+ progress running 75 'Service is stopped; it will remain stopped after the update…'
 fi
-progress running 80 '正在替换内核…'
-mv -f "$STAGED" "$CORE" || fail '替换内核失败'
+progress running 80 'Replacing core…'
+mv -f "$STAGED" "$CORE" || fail 'Failed to replace core'
 STAGED=''; SWAPPED=1
 if [ "$WAS_RUNNING" = 1 ]; then
- "$INIT" start >/dev/null 2>&1 || fail '启动失败，正在恢复旧内核'
- progress running 90 '正在启动并检查新内核…'
- wait_ready || fail '新内核未就绪，正在恢复旧内核'
+ "$INIT" start >/dev/null 2>&1 || fail 'Startup failed; restoring the previous core'
+ progress running 90 'Starting and checking the new core…'
+ wait_ready || fail 'New core is not ready; restoring the previous core'
 fi
 SUCCESS=1
 if [ "$WAS_RUNNING" = 1 ]; then
- progress success 100 "Mihomo $candidate_version 已安装，服务已恢复运行"
+ progress success 100 "Mihomo $candidate_version installed; service is running again"
 else
- progress success 100 "Mihomo $candidate_version 已安装，服务保持停止"
+ progress success 100 "Mihomo $candidate_version installed; service remains stopped"
 fi

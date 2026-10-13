@@ -2,15 +2,15 @@ import 'dart:convert';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
-const domesticGroup = '🚀 国内';
-const foreignGroup = '🌍 国外';
+const domesticGroup = '🚀 Domestic';
+const foreignGroup = '🌍 Foreign';
 const defaultSubscriptionFilters = {domesticGroup: '', foreignGroup: ''};
-const groupFilterPrefix = '# Mclash 代理组正则: ';
-const groupDirectPrefix = '# Mclash 代理组 DIRECT: ';
-const customGroupFilterPrefix = '# Mclash 代理组「';
+const groupFilterPrefix = '# Mclash group-filters: ';
+const groupDirectPrefix = '# Mclash group-direct: ';
+const customGroupFilterPrefix = '# Mclash proxy group [';
 const _prefixes = {
-  domesticGroup: '# Mclash 国内正则: ',
-  foreignGroup: '# Mclash 国外正则: '
+  domesticGroup: '# Mclash domestic-filter: ',
+  foreignGroup: '# Mclash foreign-filter: '
 };
 
 int _groupIndex(YamlMap config, String name) {
@@ -20,7 +20,7 @@ int _groupIndex(YamlMap config, String name) {
         groups.indexWhere((group) => group is YamlMap && group['name'] == name);
     if (index >= 0) return index;
   }
-  throw FormatException('配置文件中找不到 $name 代理组');
+  throw FormatException('Proxy group $name was not found in the configuration');
 }
 
 Map<String, String> readSubscriptionFilters(String content) {
@@ -73,7 +73,7 @@ String writeSubscriptionFilters(String content, Map<String, String> filters) {
           !line.startsWith(groupFilterPrefix) &&
           !line.startsWith(customGroupFilterPrefix) &&
           !_prefixes.values.any(line.startsWith) &&
-          line != '# Mclash 默认机场订阅')
+          line != '# Mclash default subscription')
       .join('\n');
   return '$groupFilterPrefix${jsonEncode(filters)}\n$body';
 }
@@ -112,7 +112,7 @@ String applySubscriptionFilters(String content, Map<String, String> filters) {
   final config = loadYaml(content) as YamlMap;
   final nodes = config['proxies'];
   if (nodes is! YamlList || nodes.isEmpty) {
-    throw const FormatException('配置没有内置节点，请先更新机场订阅');
+    throw const FormatException('Configuration has no embedded nodes; update subscriptions first');
   }
   final names = nodes.map((node) => node['name'] as String).toList();
   final editor = YamlEditor(content);
@@ -137,7 +137,7 @@ String applySubscriptionFilters(String content, Map<String, String> filters) {
       if (group.containsKey(key)) editor.remove(['proxy-groups', index, key]);
     }
     if (selected.isEmpty && directOptions[groupName] == false) {
-      throw FormatException('$groupName 未匹配到节点，请调整正则表达式或选择 DIRECT');
+      throw FormatException('No nodes match $groupName; adjust the regex or select DIRECT');
     }
     editor.update(['proxy-groups', index, 'proxies'],
         selected.isEmpty ? ['DIRECT'] : selected);

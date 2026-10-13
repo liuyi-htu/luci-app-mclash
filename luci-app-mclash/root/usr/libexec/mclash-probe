@@ -22,5 +22,5 @@ fi
 json_init
 json_add_boolean ip_supported 0
 if [ "$latency_ok" = 1 ]; then json_add_boolean ok 1; else json_add_boolean ok 0; fi
-if [ "$latency_ok" = 1 ]; then json_add_int latency "$(awk -v seconds="$elapsed" 'BEGIN {printf "%.0f",seconds*1000}')"; else json_add_string latency_error '连接失败或超时'; fi
+if [ "$latency_ok" = 1 ]; then json_add_int latency "$(awk -v seconds="$elapsed" 'BEGIN {printf "%.0f",seconds*1000}')"; else json_add_string latency_error 'Connection failed or timed out'; fi
 json_dump

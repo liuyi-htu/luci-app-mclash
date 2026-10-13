@@ -22,39 +22,39 @@ BYPASS6='::/128, ::1/128, fc00::/7, fe80::/10, ff00::/8'
 
 network_log() { /usr/libexec/mclash-log append-service "$1" 2>/dev/null || true; }
 
-fail() { network_log "失败：$1"; printf '%s\n' "$1" >&2; logger -t mclash "$1"; exit 1; }
+fail() { network_log "Failed: $1"; printf '%s\n' "$1" >&2; logger -t mclash "$1"; exit 1; }
 load() {
 	local options keys key name type
-	options="$(sed -n 's/^# Mclash OpenWrt 接管: //p' "$CONFIG")"
+	options="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$CONFIG")"
 	[ -n "$options" ] || return 0
-	[ "$(printf '%s' "$options" | wc -c)" -le 4096 ] || fail '接管设置过大'
+	[ "$(printf '%s' "$options" | wc -c)" -le 4096 ] || fail 'Capture settings are too large'
 	. /usr/share/libubox/jshn.sh
-	json_load "$options" || fail '无效接管设置'
+	json_load "$options" || fail 'Invalid capture settings'
 	json_get_var MODE mode
-	case "$MODE" in none|tun|tproxy) ;; *) fail '无效接管方式' ;; esac
+	case "$MODE" in none|tun|tproxy) ;; *) fail 'Invalid capture mode' ;; esac
 	for key in router ipv6; do
 		json_get_type type "$key"
-		[ "$type" = boolean ] || fail '无效接管开关'
+		[ "$type" = boolean ] || fail 'Invalid capture toggle'
 	done
 	json_get_type type lan
 	if [ -n "$type" ]; then
-		[ "$type" = boolean ] || fail '无效局域网代理开关'
+		[ "$type" = boolean ] || fail 'Invalid LAN proxy toggle'
 		json_get_var LAN_PROXY lan
 	fi
 	json_get_var ROUTER router
 	json_get_var IPV6 ipv6
 	json_get_type type interfaces
-	[ "$type" = array ] || fail '无效局域网接口列表'
+	[ "$type" = array ] || fail 'Invalid LAN interface list'
 	json_select interfaces
 	json_get_keys keys
-	[ -n "$keys" ] && [ "$(printf '%s\n' "$keys" | wc -w)" -le 16 ] || fail '请指定 1 至 16 个局域网设备'
+	[ -n "$keys" ] && [ "$(printf '%s\n' "$keys" | wc -w)" -le 16 ] || fail 'Specify 1 to 16 LAN interfaces'
 	for key in $keys; do
 		json_get_type type "$key"
-		[ "$type" = string ] || fail '无效局域网设备名称'
+		[ "$type" = string ] || fail 'Invalid LAN interface name'
 		json_get_var name "$key"
-		case "$name" in ''|lo|Mclash|*[!A-Za-z0-9_.-]*) fail '无效局域网设备名称' ;; esac
-		[ "${#name}" -le 15 ] || fail '局域网设备名称过长'
-		case " $IFACES " in *" $name "*) fail '局域网设备重复' ;; esac
+		case "$name" in ''|lo|Mclash|*[!A-Za-z0-9_.-]*) fail 'Invalid LAN interface name' ;; esac
+		[ "${#name}" -le 15 ] || fail 'LAN interface name is too long'
+		case " $IFACES " in *" $name "*) fail 'Duplicate LAN interface' ;; esac
 		IFACES="${IFACES}${IFACES:+ }$name"
 		LAN="${LAN}${LAN:+, }\"$name\""
 	done
@@ -62,15 +62,15 @@ load() {
 	LAN="{ $LAN }"
 	json_get_type type access
 	if [ -n "$type" ]; then
-		[ "$type" = array ] || fail '无效访问控制列表'
+		[ "$type" = array ] || fail 'Invalid access-control list'
 		json_select access; json_get_keys keys
-		[ "$(printf '%s\n' "$keys" | wc -w)" -le 64 ] || fail '访问控制最多 64 条'
+		[ "$(printf '%s\n' "$keys" | wc -w)" -le 64 ] || fail 'Access control supports at most 64 entries'
 		for key in $keys; do
 			json_get_type type "$key"
-			[ "$type" = string ] || fail '无效访问控制范围'
+			[ "$type" = string ] || fail 'Invalid access-control range'
 			json_get_var name "$key"
-			case "$name" in ''|*[!0-9A-Fa-f:./-]*) fail '无效访问控制范围' ;; esac
-			[ "${#name}" -le 95 ] || fail '访问控制范围过长'
+			case "$name" in ''|*[!0-9A-Fa-f:./-]*) fail 'Invalid access-control range' ;; esac
+			[ "${#name}" -le 95 ] || fail 'Access-control range is too long'
 			case "$name" in *:*) ACCESS6="${ACCESS6}${ACCESS6:+, }$name" ;; *) ACCESS4="${ACCESS4}${ACCESS4:+, }$name" ;; esac
 		 done
 		json_select ..
@@ -80,7 +80,7 @@ load() {
 }
 lock() {
 	mkdir -p "$STATE"
-	mkdir "$STATE/network.lock" 2>/dev/null || fail '接管操作正在进行'
+	mkdir "$STATE/network.lock" 2>/dev/null || fail 'A capture operation is in progress'
 	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
 	trap 'exit 1' HUP INT TERM
 }
@@ -115,27 +115,27 @@ down() {
 	fi
 	if [ "$result" = 0 ]; then
 		rm -f "$STATE/network.owned" "$STATE/network.ready"
-		network_log '防火墙接管规则与策略路由已清理'
-	else network_log '接管清理不完整，请检查残留规则'; fi
+		network_log 'Capture firewall rules and policy routes removed'
+	else network_log 'Capture cleanup incomplete; check for leftover rules'; fi
 	return "$result"
 }
 check() {
 	[ "$MODE" != none ] || return 0
-	[ -x "$NFT" ] && [ -x "$IP" ] && command -v fw4 >/dev/null 2>&1 || fail '请安装 firewall4、nftables 和 ip-full'
-	"$NFT" list chain inet fw4 input >/dev/null 2>&1 || fail 'firewall4 尚未运行'
-	[ "$(uci -q get firewall.@defaults[0].auto_includes)" != 0 ] || fail 'firewall4 auto_includes 已禁用'
-	[ "$MODE" != tun ] || [ -c /dev/net/tun ] || fail 'TUN 需要 kmod-tun 和 /dev/net/tun'
+	[ -x "$NFT" ] && [ -x "$IP" ] && command -v fw4 >/dev/null 2>&1 || fail 'Install firewall4, nftables and ip-full'
+	"$NFT" list chain inet fw4 input >/dev/null 2>&1 || fail 'firewall4 is not running'
+	[ "$(uci -q get firewall.@defaults[0].auto_includes)" != 0 ] || fail 'firewall4 auto_includes is disabled'
+	[ "$MODE" != tun ] || [ -c /dev/net/tun ] || fail 'TUN requires kmod-tun and /dev/net/tun'
 	if [ "$MODE" = tun ] && [ "${1:-before}" != ready ]; then
-		"$IP" link show dev Mclash >/dev/null 2>&1 && fail 'TUN 设备 Mclash 已被占用'
+		"$IP" link show dev Mclash >/dev/null 2>&1 && fail 'TUN device Mclash is already in use'
 	fi
-	for name in $IFACES; do "$IP" link show dev "$name" >/dev/null 2>&1 || fail "局域网设备不存在：$name"; done
-	[ ! -f "$STATE/network.owned" ] || fail '上次接管规则尚未清理'
-	"$NFT" list table inet mclash >/dev/null 2>&1 && fail 'nftables 的 mclash 表已被占用'
+	for name in $IFACES; do "$IP" link show dev "$name" >/dev/null 2>&1 || fail "LAN interface does not exist: $name"; done
+	[ ! -f "$STATE/network.owned" ] || fail 'Previous capture rules have not been removed'
+	"$NFT" list table inet mclash >/dev/null 2>&1 && fail 'The nftables mclash table is already in use'
 	for family in 4 6; do
-		[ -z "$("$IP" -"$family" route show table 166 2>/dev/null)" ] || fail '路由表 166 已被占用'
-		"$IP" -"$family" rule show | grep -Eq '(^1166:|lookup 166([[:space:]]|$))' && fail '策略路由 1166 或路由表 166 已被占用'
+		[ -z "$("$IP" -"$family" route show table 166 2>/dev/null)" ] || fail 'Route table 166 is already in use'
+		"$IP" -"$family" rule show | grep -Eq '(^1166:|lookup 166([[:space:]]|$))' && fail 'Policy rule 1166 or route table 166 is already in use'
 	done
-	for path in "$FWIN" "$FWOUT" "$FWFWD"; do [ ! -e "$path" ] || fail 'Mclash 防火墙包含文件已被占用'; done
+	for path in "$FWIN" "$FWOUT" "$FWFWD"; do [ ! -e "$path" ] || fail 'Mclash firewall include files are already in use'; done
 	return 0
 }
 write_lan_bypass() {
@@ -285,36 +285,36 @@ up() {
 	set -e
 	write_rules
 	set +e
-	"$NFT" -c -f "$STATE/network.nft" || fail 'nftables 校验失败，请确认 kmod-nft-tproxy 等模块已安装'
+	"$NFT" -c -f "$STATE/network.nft" || fail 'nftables validation failed; check that kmod-nft-tproxy and required modules are installed'
 	for family in 4 6; do
 		[ "$family" = 4 ] || [ "$IPV6" = 1 ] || continue
 		if [ "$MODE" = tproxy ]; then
-			"$IP" -"$family" route add local default dev lo table 166 || fail '创建 TProxy 路由失败'
+			"$IP" -"$family" route add local default dev lo table 166 || fail 'Failed to create TProxy route'
 		else
-			"$IP" -"$family" route add default dev Mclash table 166 || fail '创建 TUN 路由失败'
+			"$IP" -"$family" route add default dev Mclash table 166 || fail 'Failed to create TUN route'
 		fi
-		"$IP" -"$family" rule add pref 1166 fwmark 0x166/0xffffffff lookup 166 || fail '创建策略路由失败'
+		"$IP" -"$family" rule add pref 1166 fwmark 0x166/0xffffffff lookup 166 || fail 'Failed to create policy route'
 	done
-	"$NFT" -f "$STATE/network.nft" || fail '应用 nftables 接管规则失败'
+	"$NFT" -f "$STATE/network.nft" || fail 'Failed to apply nftables capture rules'
 	printf '%s\n' "$MODE" > "$STATE/network.ready"
 	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
-	local router_status=关闭 lan_status=关闭 ipv6_status=关闭
-	[ "$ROUTER" != 1 ] || router_status=开启
-	[ "$IPV6" != 1 ] || ipv6_status=开启
-	if [ "$LAN_PROXY" = 1 ]; then lan_status=全部设备; elif [ -n "$ACCESS4$ACCESS6" ]; then lan_status=仅访问控制指定设备; fi
-	network_log "代理范围：本机=$router_status，局域网=$lan_status，IPv6=$ipv6_status；接口：$IFACES"
+	local router_status=Disabled lan_status=Disabled ipv6_status=Disabled
+	[ "$ROUTER" != 1 ] || router_status=Enabled
+	[ "$IPV6" != 1 ] || ipv6_status=Enabled
+	if [ "$LAN_PROXY" = 1 ]; then lan_status=All devices; elif [ -n "$ACCESS4$ACCESS6" ]; then lan_status=Only allowlisted devices; fi
+	network_log "Proxy scope: router traffic=$router_status, LAN devices=$lan_status, IPv6=$ipv6_status; interfaces: $IFACES"
 	if [ "$LAN_PROXY" = 1 ]; then
-		network_log '访问控制：局域网全部代理，无需来源白名单'
+		network_log 'Access control: all LAN devices captured; no source allowlist required'
 	elif [ -n "$ACCESS4$ACCESS6" ]; then
-		network_log "访问控制：IPv4=${ACCESS4:-无}；IPv6=${ACCESS6:-无}"
-	else network_log '访问控制：未指定设备，局域网不代理'; fi
-	network_log '防火墙接管规则与策略路由已应用'
+		network_log "Access control: IPv4=${ACCESS4:-None}; IPv6=${ACCESS6:-None}"
+	else network_log 'Access control: no devices specified; LAN proxying disabled'; fi
+	network_log 'Capture firewall rules and policy routes applied'
 }
-[ "$#" = 1 ] || fail '参数错误'
+[ "$#" = 1 ] || fail 'Invalid arguments'
 lock
 case "$1" in
-	check) down || fail '无法清理旧接管规则'; load; check ;;
+	check) down || fail 'Unable to remove previous capture rules'; load; check ;;
 	up) load; up ;;
-	down) down || fail '清理接管规则失败，请查看日志' ;;
-	*) fail '不支持的接管操作' ;;
+	down) down || fail 'Failed to clean up capture rules; check the log' ;;
+	*) fail 'Unsupported capture operation' ;;
 esac

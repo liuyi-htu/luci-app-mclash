@@ -20,12 +20,13 @@ resources = client/'luci-app-mclash/htdocs/luci-static/resources/mclash'
 resources.mkdir(parents=True,exist_ok=True)
 source=compiled.read_text()
 source='\n'.join(line for line in source.splitlines() if not line.startswith('//# sourceMappingURL='))
-(resources/'overrides.js').write_text("// Generated from shared Mclash Dart code; rebuild with build-overrides.sh.\n// SPDX-License-Identifier: GPL-3.0-only\n'use strict';\n'require baseclass';\n" + source + '''
+source=''.join('\\u%04x' % ord(char) if '\u4e00' <= char <= '\u9fff' else char for char in source)
+(resources/'overrides.js').write_text("// Generated from shared Mclash Dart code; rebuild with build-overrides.sh.\n// SPDX-License-Identifier: GPL-3.0-only\n'use strict';\n'require baseclass';\n'require mclash.i18n as i18n';\n" + source + '''
 return baseclass.extend({
   call: function(action, content, payload) {
     var result = JSON.parse(globalThis.mclashOverrideCall(action, content, JSON.stringify(payload || {})));
-    if (!result.ok) throw new Error(result.error);
-    return result.value;
+    if (!result.ok) { var message = result.error.replace(/^FormatException: /, ''); throw new Error(typeof i18n !== 'undefined' ? i18n.translate(message) : message); }
+    return typeof i18n !== 'undefined' ? i18n.localizeGroups(result.value) : result.value;
   }
 });
 ''')

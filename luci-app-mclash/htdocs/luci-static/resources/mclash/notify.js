@@ -1,5 +1,6 @@
 'use strict';
 'require baseclass';
+'require mclash.i18n as i18n';
 
 var host;
 return baseclass.extend({
@@ -19,8 +20,8 @@ return baseclass.extend({
   function dismiss() { window.clearTimeout(timer); if (toast.parentNode) toast.parentNode.removeChild(toast); }
   toast = E('div', {'class':'mclash-toast mclash-toast-' + type, role:type === 'error' ? 'alert' : 'status'}, [
    E('span', {'class':'mclash-toast-icon', 'aria-hidden':'true'}, [type === 'success' ? '✓' : type === 'error' ? '!' : 'i']),
-   E('span', {'class':'mclash-toast-text'}, [String(message)]),
-   E('button', {type:'button', 'class':'mclash-toast-close', 'aria-label':_('关闭提示'), click:dismiss}, ['×'])
+   E('span', {'class':'mclash-toast-text'}, [i18n.translate(message)]),
+   E('button', {type:'button', 'class':'mclash-toast-close', 'aria-label':_('Dismiss notification', 'mclash'), click:dismiss}, ['×'])
   ]);
   while (host.children.length >= 3) host.removeChild(host.firstChild);
   host.appendChild(toast);
