@@ -38,7 +38,7 @@ String handle(String action, String content, String payload, {bool normalized = 
         final config = loadYaml(content) as Map;
         result = {
           'network': networkOptions(content),
-          'dnsYaml': config['dns'] == null ? '' : (YamlEditor('')..update([], plain(config['dns']))).toString(),
+          'dnsYaml': (YamlEditor('')..update([], {if (config['dns'] is Map) for (final entry in (config['dns'] as Map).entries) if (!['enable', 'listen', 'ipv6'].contains(entry.key)) '${entry.key}': plain(entry.value)})).toString(),
           'controller': config['external-controller'] ?? '',
           'secret': config['secret'] ?? '',
           'manualNodes': savedManualNodeNames(content),
@@ -61,11 +61,17 @@ String handle(String action, String content, String payload, {bool normalized = 
         result = applyNetwork(content, args);
       case 'dns':
         final dns = loadYaml(args['yaml'] as String);
-        if (dns is! Map || dns.isEmpty) {
-          throw const FormatException('DNS 配置须为非空 YAML 对象');
+        if (dns is! Map) {
+          throw const FormatException('DNS 配置须为 YAML 对象');
+        }
+        final previousDns = (loadYaml(content) as Map)['dns'];
+        final nextDns = Map<String, dynamic>.from(plain(dns) as Map);
+        for (final key in ['enable', 'listen', 'ipv6']) {
+          nextDns.remove(key);
+          if (previousDns is Map && previousDns.containsKey(key)) nextDns[key] = plain(previousDns[key]);
         }
         final editor = YamlEditor(content);
-        editor.update(['dns'], plain(dns));
+        editor.update(['dns'], nextDns);
         result = editor.toString();
       case 'addNode':
         result = addNodeLink(content, args['link'] as String);

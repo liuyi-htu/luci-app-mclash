@@ -25,6 +25,8 @@ async function click(root,label){const n=buttons(root).find(n=>n.attrs['aria-lab
  assert.equal(dns.value,data.dnsYaml);
  dns.value='enable: false\n';await click(dialog,'保存');assert.equal(saved.yaml,'enable: false\n');
  await click(manager.element,'代理组管理');await click(dialog,'编辑');
+ await click(dialog,'取消');assert.ok(buttons(dialog).some(n=>n.children[0]==='新增代理组'));
+ await click(dialog,'编辑');
  const field=label=>nodes(dialog).find(n=>n.attrs['aria-label']===label);
  const type=field('类型'),url=field('测速地址'),interval=field('测速间隔（秒）');
  type.value='url-test';type.listeners.change();assert.equal(url.value,'https://www.gstatic.com/generate_204');assert.equal(interval.value,'300');

@@ -90,7 +90,11 @@ return view.extend({
 		}); });
 		serviceButton.setAttribute('aria-label',_('点击启停'));
 		function refreshPreview() {
-			return command('read-config').then(function(text) { preview.textContent = previewText(text); });
+			return command('read-config').then(function(text) {
+				editor.value = text;
+				networkOptions = overrides.call('summary', text).network || networkOptions;
+				preview.textContent = previewText(text);
+			});
 		}
 		function refreshLogs() {
 			return command(logKind.value === 'core' ? 'logs' : logKind.value + '-logs').then(function(text) {
@@ -182,7 +186,7 @@ return view.extend({
 				var name = E('input', {'class': 'cbi-input-text', 'aria-label': _('机场名称'), 'value': entry.name});
 				var url = E('input', {'class': 'cbi-input-text', 'aria-label': _('订阅链接'), 'value': entry.url, 'placeholder': 'https://…'});
 				ui.showModal(_('编辑机场'), [E('div', {'class': 'mclash-modal-field'}, [E('label', {}, [_('机场名称')]), name, E('label', {}, [_('订阅链接')]), url]),
-					E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ', button(_('保存'), function() {
+						E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': subscriptionDialog}, [_('取消')]), ' ', button(_('保存'), function() {
 						if (pulling) return Promise.resolve();
 						var updated = Object.assign({}, entry, {name: name.value.trim(), url: url.value.trim()}), next = entries.slice();
 						if (!updated.name || !updated.url) throw new Error(_('请填写机场名称和订阅链接'));
@@ -227,7 +231,7 @@ return view.extend({
 				button(_('新增机场'), function() { editAirport(null); }),
 				E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
-		var manager = management.render(function() { return editor.value; }, persist, function() { return refresh().then(function() { return state.running; }); });
+		var manager = management.render(function() { return editor.value; }, persist, function() { return refreshPreview().then(refresh).then(function() { return state.running; }); });
 		var proxyView = proxy.render(function() { return overrides.call('summary', editor.value); }, function() { return state.running; });
 		function statusCard(title, icon, color, value, activate) {
 			return E('button',{'type':'button','class':'mclash-status-card','aria-label':title,'click':activate},[

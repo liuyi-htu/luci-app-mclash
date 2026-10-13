@@ -38,10 +38,10 @@ return baseclass.extend({
 		function select(values, value) {
 			return E('select', {'class': 'cbi-input-select'}, values.map(function(v) { return E('option', {'value': v, 'selected': v === value ? '' : null}, [v]); }));
 		}
-		function modal(title, fields, save) {
+		function modal(title, fields, save, parent) {
 			ui.showModal(title, [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, fields), E('div', {'class': 'right'}, [
-				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': ui.hideModal}, [_('取消')]), ' ',
-				action(_('保存'), function() { return save().then(function() { ui.hideModal(); }); }, 'cbi-button-save')
+				E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': parent || ui.hideModal}, [_('取消')]), ' ',
+				action(_('保存'), function() { return save().then(function() { (parent || ui.hideModal)(); }); }, 'cbi-button-save')
 			])]);
 		}
 		function listRows(items, edit, remove, reorder, label) {
@@ -99,7 +99,7 @@ return baseclass.extend({
 			selected.exclude(targets.value());
 			modal(_('链路 ') + id, [field(_('前置节点（按连接顺序）'), selected.element), field(_('作用节点'), targets.element)], function() {
 				return change('chain', {id: id, selected: selected.value(), targets: targets.value(), prepend: true});
-			});
+			}, openChains);
 		}
 		function openChains() {
 			var s = summary();
@@ -126,7 +126,7 @@ return baseclass.extend({
 				if (url.value.trim()) next.url = url.value.trim(); else delete next.url;
 				if (interval.value.trim()) { var n = Number(interval.value); if (!Number.isInteger(n) || n < 0) throw new Error(_('间隔须为非负整数')); next.interval = n; } else delete next.interval;
 				return change('group', {group: next, oldName: oldName || null, filter: filter.value, includeDirect: direct.checked});
-			});
+			}, openGroups);
 		}
 		function openGroups() {
 			var s = summary(), names = s.groups.map(function(g) { return g.name; });
@@ -152,7 +152,7 @@ return baseclass.extend({
 				if (type.value !== 'inline' && path.value.trim()) next.path = path.value.trim();
 				if (type.value === 'inline') next.payload = payload.value.split(/\r?\n/).map(function(line) { return line.trim(); }).filter(Boolean);
 				return change('provider', {name: name.value.trim(), oldName: oldName || null, provider: next});
-			});
+			}, openProviders);
 		}
 		function openProviders() {
 			ui.showModal(_('规则集管理'), [listRows(Object.keys(summary().providers), editProvider, function(name) { return change('deleteProvider', {name: name}); }),
@@ -165,7 +165,7 @@ return baseclass.extend({
 				if (!value || /[\r\n]/.test(value)) throw new Error(_('请填写一条规则'));
 				if (index == null) rules.push(value); else rules[index] = value;
 				return change('rules', {rules: rules});
-			});
+			}, openRules);
 		}
 		function openRules() {
 			var rules = summary().rules, indices = rules.map(function(rule, index) { return String(index); });
@@ -175,7 +175,7 @@ return baseclass.extend({
 				E('div', {'class': 'mclash-actions'}, [action(_('新增规则'), function() { editRule(null); }), E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('关闭')])])]);
 		}
 		function openDNS() {
-			var dns = area(summary().dnsYaml || 'enable: true\n', 16);
+			var dns = area(summary().dnsYaml || '{}\n', 16);
 			modal(_('DNS 管理'), [field(_('DNS 配置（YAML）'), dns)], function() {
 				return change('dns', {yaml: dns.value});
 			});

@@ -11,7 +11,12 @@ const dnsChanged=api.call('dns',dnsBase,{yaml:'enable: false\nnameserver: [https
 assert.match(dnsChanged,/# keep comment/);
 assert.match(dnsChanged,/mixed-port: 7890/);
 assert.match(api.call('summary',dnsChanged).dnsYaml,/nameserver-policy/);
-assert.match(api.call('summary',dnsChanged).dnsYaml,/enable: false/);
+assert.doesNotMatch(api.call('summary',dnsChanged).dnsYaml,/enable:|listen:|ipv6:/);
+assert.match(dnsChanged,/enable: true/);
+const protectedDNS=api.call('dns',dnsBase.replace('  enable: true','  enable: true\n  listen: "[::]:1053"\n  ipv6: true'),{yaml:'nameserver: [8.8.8.8]\nenable: false\nlisten: 127.0.0.1:53\nipv6: false\n'});
+assert.match(protectedDNS,/enable: true/);
+assert.match(protectedDNS,/\[::\]:1053/);
+assert.match(protectedDNS,/ipv6: true/);
 assert.throws(()=>api.call('dns',dnsBase,{yaml:'[1, 2]'}),/DNS/);
 assert.throws(()=>api.call('dns',dnsBase,{yaml:'enable: ['}));
 let config = `proxies:

@@ -187,6 +187,7 @@ async function main() {
  const originalText=savedText; savedText='# Mclash 链路设置: {}\n# Mclash 节点链路 2: {}\nfresh runtime config'; calls.length=0; configPane.listeners['cbi-tab-active']();
  await new Promise(resolve=>setImmediate(resolve)); assert.ok(calls.includes('read-config'));
  assert.equal(nodes.find(n=>n.tag==='pre').textContent,'fresh runtime config'); savedText=originalText;
+ configPane.listeners['cbi-tab-active'](); await new Promise(resolve=>setImmediate(resolve));
  assert.ok(!nodes.some(n=>n.tag==='button' && n.children[0]==='重启服务'),'restart control is absent');
  assert.ok(!nodes.some(n=>n.tag==='button' && n.children[0]==='刷新配置'),'config refreshes on tab activation');
  assert.deepEqual(nodes.filter(n=>n.tag==='h3').map(n=>n.children[0]),['接管方式','机场订阅']);
