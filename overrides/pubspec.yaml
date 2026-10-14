@@ -1,6 +1,6 @@
 name: mclash_openwrt_overrides
 publish_to: none
-version: 2.0.1
+version: 2.0.2
 environment:
   sdk: '>=3.6.0 <4.0.0'
 dependencies:
