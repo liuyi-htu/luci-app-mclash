@@ -12,7 +12,7 @@ Run checks from the repository root. Set `PYTHONDONTWRITEBYTECODE=1` to avoid Py
 | log_test.py | Size bounds, selective clearing and lifecycle separators |
 | update_test.py | Core validation, replacement and rollback |
 | timeout_test.py | Timeout handling and cancellation without a system timeout command |
-| init_test.py | Startup validation and reload ordering |
+| init_test.py | First-boot enablement and retry, startup validation and reload ordering |
 | network_integration.py | Real capture behavior in isolated network namespaces |
 | package_check.py | SDK artifacts, contents, permissions, versions and naming |
 

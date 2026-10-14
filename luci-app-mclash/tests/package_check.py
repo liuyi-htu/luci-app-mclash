@@ -66,6 +66,7 @@ with tempfile.TemporaryDirectory(prefix='mclash-package-') as temporary:
         path = Path('usr/libexec') / name
         assert (extracted / path).read_bytes() == (root / 'root' / path).read_bytes(), str(path)
     assert (extracted / 'etc/init.d/mclash').read_bytes() == (root / 'root/etc/init.d/mclash').read_bytes()
+    assert (extracted / 'etc/uci-defaults/99-luci-app-mclash').read_bytes() == (root / 'root/etc/uci-defaults/99-luci-app-mclash').read_bytes()
     for path in scripts:
         assert path.is_file() and path.stat().st_mode & 0o111, str(path)
         subprocess.run(['busybox','ash','-n',str(path)],check=True)

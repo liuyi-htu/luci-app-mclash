@@ -10,6 +10,41 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class InitTest(unittest.TestCase):
+    def test_defaults_enable_boot_and_retry_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for directory in ['etc/mclash', 'etc/init.d', 'usr/libexec', 'var/log', 'tmp']:
+                (base / directory).mkdir(parents=True)
+            config = base / 'etc/mclash/config.yaml'
+            config.write_text('external-controller: 127.0.0.1:9090\n')
+            helper = base / 'usr/libexec/mclash-config-language'
+            helper.write_text('#!/bin/sh\ncat "$1"\n')
+            helper.chmod(0o755)
+            service = base / 'etc/init.d/mclash'
+            actions = base / 'actions'
+            service.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{actions}"\nexit "${{ENABLE_RESULT:-0}}"\n')
+            service.chmod(0o755)
+            source = (ROOT / 'root/etc/uci-defaults/99-luci-app-mclash').read_text()
+            for prefix in ['/tmp/', '/etc/', '/usr/libexec/', '/var/log/']:
+                source = source.replace(prefix, str(base) + prefix)
+            script = base / 'defaults'
+            script.write_text(source)
+            cache = base / 'tmp/luci-indexcache'
+            cache.touch()
+            result = subprocess.run(['busybox', 'ash', str(script)],
+                                    env=dict(os.environ, ENABLE_RESULT='1'), capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(cache.exists())
+            # Successful first boot and repeated installation both enable only;
+            # package setup must not start a proxy before the user configures it.
+            for _ in range(2):
+                result = subprocess.run(['busybox', 'ash', str(script)],
+                                        env=dict(os.environ, ENABLE_RESULT='0'), capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(cache.exists())
+            self.assertEqual(actions.read_text().splitlines(), ['enable'] * 3)
+            self.assertIn('external-controller: 0.0.0.0:9090', config.read_text())
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

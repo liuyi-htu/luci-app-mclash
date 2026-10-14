@@ -25,6 +25,8 @@ make package/luci-app-mclash/compile V=s -j"$(nproc)"
 
 Firmware is written to `bin/targets/`, packages to `bin/packages/`. Use `-j1 V=s` to diagnose build failures. See the [OpenWrt build instructions](https://github.com/openwrt/openwrt/blob/main/README.md).
 
+On the first boot of a firmware image, Mclash's defaults script enables the service for automatic startup. If enablement fails, the script remains available for retry. Install the Mihomo core through the plugin before running the proxy.
+
 ## Build with SDKs
 
 Install the OpenWrt SDK build dependencies plus Node.js, Python 3, BusyBox, curl, rsync and zstd on Linux x86_64:

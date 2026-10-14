@@ -17,6 +17,9 @@ if [ -f /var/log/mclash-service.log ] && [ ! -L /var/log/mclash-service.log ] &&
 fi
 chmod 0700 /etc/mclash
 chmod 0600 /etc/mclash/config.yaml
+# Enable on package installation and on the first boot of a firmware image.
+# Keep this defaults script for retry if creating the boot links fails.
+/etc/init.d/mclash enable || exit 1
 rm -f /tmp/luci-indexcache
 rm -rf /tmp/luci-modulecache
 exit 0
