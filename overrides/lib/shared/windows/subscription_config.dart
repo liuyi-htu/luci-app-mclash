@@ -57,7 +57,6 @@ String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) 
     if (prefixes != null) return 'proxies: []\n';
     throw const FormatException('Enter a subscription URL');
   }
-  if (sources.length == 1 && tags.single.isEmpty) return sources.single;
   final batches = <List<Map<String, dynamic>>>[];
   for (var i = 0; i < sources.length; i++) {
     final source = loadYaml(sources[i]);
@@ -92,6 +91,11 @@ String mergeSubscriptionSources(List<String> sources, {List<String>? prefixes}) 
       final upstream = node['dialer-proxy'];
       if (renamed.containsKey(upstream)) {
         node['dialer-proxy'] = renamed[upstream];
+      } else if (upstream != null &&
+          !['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE'].contains(upstream)) {
+        // Subscription groups/providers are intentionally not imported. Keep
+        // node-to-node dialers, but discard references to external policies.
+        node.remove('dialer-proxy');
       }
     }
     merged.addAll(batches[i]);

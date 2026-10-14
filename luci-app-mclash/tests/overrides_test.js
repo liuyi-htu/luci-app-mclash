@@ -205,6 +205,43 @@ const allRemoved = api.call('subscription', onlySecond, {template:base,sources:[
 assert.deepEqual(api.call('summary',allRemoved).nodes,['manual-airport']);
 console.log('Airport ordering and deletion keep stable node identities');
 
+// Import only embedded nodes, even when a subscription supplies dialer groups.
+const groupedAirport = `proxies:
+  - {name: local, type: http, server: local.example, port: 80, headers: {X-Test: keep}}
+  - {name: remote, type: anytls, server: remote.example, port: 443, password: test-only, dialer-proxy: upstream}
+  - {name: chained, type: vless, server: chained.example, port: 443, uuid: 00000000-0000-4000-8000-000000000004, dialer-proxy: local}
+proxy-groups:
+  - {name: upstream, type: select, proxies: [DIRECT, fastest, local]}
+  - {name: fastest, type: url-test, proxies: [local], url: 'https://www.gstatic.com/generate_204', interval: 300}
+  - {name: unused, type: select, proxies: [remote]}
+dns: {nameserver: [unwanted.example]}
+rules: [MATCH,upstream]
+rule-providers: {unwanted: {type: http, url: 'https://unwanted.example/rules'}}
+secret: subscription-secret-test-only
+`;
+const nodesOnly = api.call('subscription',base,{template:base,sources:[groupedAirport],refresh:true});
+assert.doesNotMatch(nodesOnly,/dialer-proxy: upstream|fastest|unused|unwanted.example|subscription-secret-test-only|Mclash dialer:|subscription-groups:/);
+assert.match(nodesOnly,/dialer-proxy: local/);
+assert.match(nodesOnly,/type: anytls/);
+assert.match(nodesOnly,/X-Test: keep/);
+assert.deepEqual(api.call('summary',nodesOnly).groups.map(g=>g.name),api.call('summary',base).groups.map(g=>g.name));
+assert.deepEqual(api.call('summary',nodesOnly).rules,api.call('summary',base).rules);
+assert.equal(api.call('summary',nodesOnly).dnsYaml,api.call('summary',base).dnsYaml);
+const grouped = api.call('subscription',base,{template:base,sources:[groupedAirport,groupedAirport],refresh:true});
+assert.doesNotMatch(grouped,/dialer-proxy: upstream|fastest|unused|unwanted.example/);
+assert.match(grouped,/dialer-proxy: 1-local/);
+assert.match(grouped,/dialer-proxy: 2-local/);
+const groupedSources=api.call('subscriptionSources',grouped,{count:2});
+assert.match(groupedSources[0],/dialer-proxy: local/);
+assert.doesNotMatch(groupedSources[0],/proxy-groups:|dns:|rules:|secret:|dialer-proxy: upstream/);
+const independentlyUpdated=api.call('subscription',grouped,{template:base,sources:[groupedAirport.replace('remote.example','updated.example'),groupedSources[1]],prefixes:['1-','2-'],refresh:true});
+assert.equal(api.call('subscriptionSources',independentlyUpdated,{count:2})[1],groupedSources[1]);
+assert.match(independentlyUpdated,/updated.example/);
+assert.doesNotMatch(independentlyUpdated,/dialer-proxy: upstream/);
+const directDialer=api.call('subscription',base,{template:base,sources:[airportOne.replace('dialer-proxy: edge','dialer-proxy: DIRECT')],refresh:true});
+assert.match(directDialer,/dialer-proxy: DIRECT/);
+console.log('Node-only subscriptions discard external dialers and preserve node fields and local policies');
+
 // Existing profiles migrate metadata and built-in references without renaming custom nodes.
 const legacyProfile='# Mclash OpenWrt \u63a5\u7ba1: {"mode":"none","interfaces":["br-lan"],"lan":true,"router":true,"ipv6":false,"stack":"mixed"}\n# Mclash OpenWrt \u673a\u573a\u540d\u79f0: ["Custom"]\nproxies: [{name: Custom, type: http, server: example.org, port: 80}]\nproxy-groups: [{name: "🚀 \u56fd\u5185", type: select, proxies: [DIRECT, Custom]}, {name: "🌍 \u56fd\u5916", type: select, proxies: [DIRECT]}]\nrules: ["MATCH,🌍 \u56fd\u5916"]\n';
 assert.equal(api.call('summary',legacyProfile).groups[0].name,'🚀 Domestic');
