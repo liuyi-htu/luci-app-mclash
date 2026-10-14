@@ -242,6 +242,39 @@ const directDialer=api.call('subscription',base,{template:base,sources:[airportO
 assert.match(directDialer,/dialer-proxy: DIRECT/);
 console.log('Node-only subscriptions discard external dialers and preserve node fields and local policies');
 
+// Existing block-style nodes and later edits keep one physical line per node.
+const blockNodes = `# keep header
+proxies:
+  - name: "special: #node"
+    type: http
+    server: example.org
+    port: 80
+    headers:
+      X-Test: "first\\nsecond"
+    alpn: [h2, http/1.1]
+  - name: second
+    type: http
+    server: second.example
+    port: 8080
+proxy-groups: [{name: local, type: select, proxies: [DIRECT]}]
+rules: ["MATCH,DIRECT"]
+`;
+const compactNodes = api.call('formatNodes',blockNodes);
+const nodeLines = compactNodes.split('proxy-groups:')[0].split('\n').filter(line=>line.trim().startsWith('-'));
+assert.equal(nodeLines.length,2);
+assert.ok(nodeLines.every(line=>/^\s*- \{.*\}$/.test(line)));
+assert.match(nodeLines[0],/name: "special: #node"/);
+assert.match(nodeLines[0],/headers: \{X-Test: "first\\nsecond"\}/);
+assert.match(nodeLines[0],/alpn: \[h2, http\/1.1\]/);
+assert.ok(compactNodes.startsWith('# keep header\n'));
+assert.equal(compactNodes.slice(compactNodes.indexOf('proxy-groups:')),blockNodes.slice(blockNodes.indexOf('proxy-groups:')));
+assert.equal(api.call('formatNodes',compactNodes),compactNodes);
+assert.equal(api.call('formatNodes','proxies: []\nrules: ["MATCH,DIRECT"]\n'),'proxies: []\nrules: ["MATCH,DIRECT"]\n');
+const importedNodeLines=nodesOnly.split('proxy-groups:')[0].split('\n').filter(line=>line.trim().startsWith('-'));
+assert.equal(importedNodeLines.length,3);
+assert.ok(importedNodeLines.every(line=>/^\s*- \{.*\}$/.test(line)));
+console.log('Proxy nodes use one-line flow maps with nested values and escaped strings intact');
+
 // Existing profiles migrate metadata and built-in references without renaming custom nodes.
 const legacyProfile='# Mclash OpenWrt \u63a5\u7ba1: {"mode":"none","interfaces":["br-lan"],"lan":true,"router":true,"ipv6":false,"stack":"mixed"}\n# Mclash OpenWrt \u673a\u573a\u540d\u79f0: ["Custom"]\nproxies: [{name: Custom, type: http, server: example.org, port: 80}]\nproxy-groups: [{name: "🚀 \u56fd\u5185", type: select, proxies: [DIRECT, Custom]}, {name: "🌍 \u56fd\u5916", type: select, proxies: [DIRECT]}]\nrules: ["MATCH,🌍 \u56fd\u5916"]\n';
 assert.equal(api.call('summary',legacyProfile).groups[0].name,'🚀 Domestic');

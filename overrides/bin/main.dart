@@ -37,6 +37,8 @@ String handle(String action, String content, String payload, {bool normalized = 
     if (args['template'] is String) args['template'] = migrateLegacyConfig(args['template'] as String);
     Object? result;
     switch (action) {
+      case 'formatNodes':
+        result = content;
       case 'summary':
         final config = loadYaml(content) as Map;
         result = {
@@ -126,6 +128,7 @@ String handle(String action, String content, String payload, {bool normalized = 
       default:
         throw const FormatException('Unsupported configuration operation');
     }
+    if (result is String) result = formatProxyNodes(result);
     return jsonEncode({'ok': true, 'value': result});
   } catch (error) {
     // yaml_edit can mis-indent nested flow maps when replacing mixed-style lists.

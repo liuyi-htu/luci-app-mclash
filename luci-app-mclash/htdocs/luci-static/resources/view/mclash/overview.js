@@ -36,7 +36,7 @@ return view.extend({
 		var editor = {value: data[1]};
 		function previewText(text) {
 			var namePrefix = '# Mclash OpenWrt subscription-names: ';
-			return text.split('\n').map(function(line) {
+			return overrides.call('formatNodes', text).split('\n').map(function(line) {
 				if (line.indexOf(namePrefix) !== 0) return line;
 				try {
 					var names = JSON.parse(line.slice(namePrefix.length));

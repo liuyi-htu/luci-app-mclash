@@ -9,7 +9,7 @@ A Mihomo manager for OpenWrt with TUN/TProxy capture, subscriptions, nodes, prox
 
 ## Install
 
-Current release: **v2.0.2** (`2.0.2-r1`).
+Current release: **v2.0.3** (`2.0.3-r1`).
 
 Download the APK or IPK matching your firmware from [Releases](https://github.com/liuyi-htu/luci-app-mclash/releases/latest). Install `luci-i18n-mclash-zh-cn` for Chinese translations. Mihomo is installed separately through the plugin.
 

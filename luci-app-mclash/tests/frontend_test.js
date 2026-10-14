@@ -159,7 +159,7 @@ async function main() {
  };
  const ui = {addNotification:(_title,element,type)=>notifications.push({element,type}),showModal:(title,children)=>{modal={title,children};},hideModal:()=>{modal=null;},
   tabs:{initTabGroup(panes) {assert.deepEqual(panes.map(n=>n.attrs['data-tab-title']),['Basic settings','Nodes and rules','Runtime configuration','Logs','Update core']);}}};
- const override = {call:(action,text,args)=>{if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return Array.from({length:args.count},(_,i)=>'retained airport '+String.fromCharCode(65+i)); if(action==='subscription') {subscriptionArgs=args;return text;}
+ const override = {call:(action,text,args)=>{if(action==='formatNodes') return text; if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return Array.from({length:args.count},(_,i)=>'retained airport '+String.fromCharCode(65+i)); if(action==='subscription') {subscriptionArgs=args;return text;}
   return {controller:'0.0.0.0:9097',groups:[]};}};
  const app = new Function('view','fs','ui','E','_','management','proxy','overrides','template','update','notice','L','probe',source)(
   {extend:x=>x},file,ui,E,(text,context)=>context==='mclash'?text:({Edit:'\u7f16\u8f91',Delete:'\u5220\u9664',Cancel:'\u53d6\u6d88',Save:'\u4fdd\u5b58'}[text]||text),{render:(_content,_save,getRunning)=>{managerRunning=getRunning;return {element:E('div'),refresh() {}};}},

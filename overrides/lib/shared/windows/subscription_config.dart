@@ -17,6 +17,18 @@ Object? _plainSubscriptionValue(Object? value) {
   return value;
 }
 
+/// Render each proxy as one flow-style map without changing its values.
+String formatProxyNodes(String content) {
+  final config = loadYaml(content);
+  final nodes = config is Map ? config['proxies'] : null;
+  if (nodes is! List || nodes.isEmpty) return content;
+  return (YamlEditor(content)..update(['proxies'], [
+    for (final node in nodes)
+      wrapAsYamlNode(_plainSubscriptionValue(node),
+          collectionStyle: CollectionStyle.FLOW),
+  ])).toString();
+}
+
 /// Resolves names in source order and retains dialer references within a source.
 List<String> _sourcePrefixes(int count, List<String>? prefixes) {
   final values = prefixes ?? List.generate(count, (i) => count == 1 ? '' : '${i + 1}-');
