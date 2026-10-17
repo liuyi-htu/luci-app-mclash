@@ -153,8 +153,8 @@ return view.extend({
 			}; });
 			var pulling = false, cancelled = false;
 			function retainedSources() { return overrides.call('subscriptionSources', editor.value, {count: entries.length, prefixes: entries.map(function(e) { return e.prefix; })}); }
-			function saveAirports(next, sources) {
-				var content = sources ? overrides.call('subscription', editor.value, {template: template.text, sources: sources, prefixes: next.map(function(e) { return e.prefix; }), refresh: overrides.call('summary', editor.value).groups.length > 0, allowEmpty: !next.length}) : editor.value;
+			function saveAirports(next, sources, allowEmpty) {
+				var content = sources ? overrides.call('subscription', editor.value, {template: template.text, sources: sources, prefixes: next.map(function(e) { return e.prefix; }), refresh: overrides.call('summary', editor.value).groups.length > 0, allowEmpty: allowEmpty === true || !next.length}) : editor.value;
 				content = content.split('\n').filter(function(line) { return ![urlPrefix, namePrefix, tagPrefix, usagePrefix].some(function(prefix) { return line.indexOf(prefix) === 0; }); }).join('\n');
 				return persist(namePrefix + JSON.stringify(next.map(function(e) { return e.name; })) + '\n' + urlPrefix + JSON.stringify(next.map(function(e) { return e.url; })) + '\n' + tagPrefix + JSON.stringify(next.map(function(e) { return e.prefix; })) + '\n' + usagePrefix + JSON.stringify(next.map(function(e) { return e.usage; })) + '\n' + content).then(function() { subscriptionDialog(); });
 			}
@@ -226,7 +226,7 @@ return view.extend({
 				index ? button('↑', function() { return moveAirport(index, -1); }) : '',
 				index < entries.length - 1 ? button('↓', function() { return moveAirport(index, 1); }) : '',
 				button(_('Update', 'mclash'), function() { return updateAirport(index); }, 'cbi-button-save'),
-				button(_('Delete', 'mclash'), function() { var next = entries.slice(), sources = retainedSources(); next.splice(index, 1); sources.splice(index, 1); return saveAirports(next, sources); }, 'cbi-button-negative')
+				button(_('Delete', 'mclash'), function() { var next = entries.slice(), sources = retainedSources(); next.splice(index, 1); sources.splice(index, 1); return saveAirports(next, sources, true); }, 'cbi-button-negative')
 			]); });
 			ui.showModal(_('Subscriptions', 'mclash'), [E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, rows), E('div', {'class': 'mclash-actions'}, [
 				button(_('Add subscription', 'mclash'), function() { editAirport(null); }),

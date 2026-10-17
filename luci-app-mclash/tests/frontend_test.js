@@ -257,12 +257,14 @@ async function main() {
  assert.match(savedText,/# Mclash OpenWrt subscription-names: \["Subscription A","Subscription B"\]/);
  calls.length=0;await airportClick(0,'Update');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);
  assert.equal(subscriptionArgs.sources[1],'retained airport B');
+ assert.equal(subscriptionArgs.allowEmpty,false,'ordinary updates retain empty-group validation');
  assert.ok(text(airportRows()[0]).includes('Remaining traffic: 70 B'));
  calls.length=0;await airportClick(0,'↓');assert.ok(!calls.includes('fetch-subscription'),'reordering must not fetch');
  assert.deepEqual(subscriptionArgs.prefixes,['2-','1-']);
  assert.deepEqual(airportRows().map(n=>n.children[0].children[0]),['1-Subscription B','2-Subscription A']);
  assert.equal(subscriptionArgs.sources[0],'retained airport B');
  await airportClick(0,'Delete');assert.equal(airportRows().length,1);assert.deepEqual(subscriptionArgs.prefixes,['1-']);
+ assert.equal(subscriptionArgs.allowEmpty,true,'explicit deletion permits empty filtered groups');
  await click('Add subscription');airportInputs('Subscription name')[0].value='Subscription C';airportInputs('Subscription URL')[0].value='https://example.org/third';
  calls.length=0;await click('Save');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);assert.equal(airportRows().length,2);
  await click('Listen address and port');

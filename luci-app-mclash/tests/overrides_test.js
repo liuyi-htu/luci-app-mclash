@@ -205,6 +205,45 @@ const allRemoved = api.call('subscription', onlySecond, {template:base,sources:[
 assert.deepEqual(api.call('summary',allRemoved).nodes,['manual-airport']);
 console.log('Airport ordering and deletion keep stable node identities');
 
+// Delete the last source without the manual node used by the tests above.
+const defaultImported = api.call('subscription', new DefaultTemplate().text, {
+ template: new DefaultTemplate().text, sources: [airportOne], refresh: true
+});
+const emptySubscriptions = api.call('subscription', defaultImported, {
+ template: new DefaultTemplate().text, sources: [], prefixes: [], allowEmpty: true, refresh: true
+});
+assert.deepEqual(api.call('summary', emptySubscriptions).nodes, []);
+assert.ok(api.call('summary', emptySubscriptions).groups.every(group => group.proxies.length > 0));
+const withHost = api.call('host', defaultImported, {host: 'override.example'});
+const removedWithHost = api.call('subscription', withHost, {
+ template: new DefaultTemplate().text, sources: [], prefixes: [], allowEmpty: true, refresh: true
+});
+assert.deepEqual(api.call('summary', removedWithHost).nodes, []);
+assert.equal(api.call('summary', removedWithHost).host, 'override.example');
+const directlyReferenced = api.call('rules', defaultImported, {rules: ['MATCH,edge']});
+assert.throws(() => api.call('subscription', directlyReferenced, {
+ template: new DefaultTemplate().text, sources: [], prefixes: [], allowEmpty: true, refresh: true
+}), /still referenced by rules/);
+const filteredAirports = api.call('group', airports, {
+ oldName: 'custom', group: {name: 'custom', type: 'select'}, filter: '^1-', includeDirect: false
+});
+assert.throws(() => api.call('subscription', filteredAirports, {
+ template: base, sources: [retained[1]], prefixes: ['2-'], refresh: true
+}), /No nodes match/);
+const deletedFilteredAirport = api.call('subscription', filteredAirports, {
+ template: base, sources: [retained[1]], prefixes: ['2-'], allowEmpty: true, refresh: true
+});
+const deletedSummary = api.call('summary', deletedFilteredAirport);
+assert.deepEqual(new Set(deletedSummary.nodes), new Set(['2-edge', 'manual-airport']));
+assert.deepEqual(deletedSummary.groups.find(group => group.name === 'custom').proxies, ['DIRECT']);
+assert.equal(deletedSummary.filters.custom, '^1-');
+assert.equal(deletedSummary.direct.custom, false);
+const restoredAirports = api.call('subscription', deletedFilteredAirport, {
+ template: base, sources: retained, prefixes: ['1-', '2-'], refresh: true
+});
+assert.deepEqual(api.call('summary', restoredAirports).groups.find(group => group.name === 'custom').proxies, ['1-edge', '1-downstream']);
+console.log('Explicit subscription deletion supports empty nodes and filtered groups');
+
 // Import only embedded nodes, even when a subscription supplies dialer groups.
 const groupedAirport = `proxies:
   - {name: local, type: http, server: local.example, port: 80, headers: {X-Test: keep}}

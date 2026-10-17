@@ -108,10 +108,11 @@ RegExp _compile(String filter) {
 }
 
 /// Expressions are kept in comments; Mihomo receives explicit proxy lists.
-String applySubscriptionFilters(String content, Map<String, String> filters) {
+String applySubscriptionFilters(String content, Map<String, String> filters,
+    {bool allowEmpty = false}) {
   final config = loadYaml(content) as YamlMap;
   final nodes = config['proxies'];
-  if (nodes is! YamlList || nodes.isEmpty) {
+  if (nodes is! YamlList || (nodes.isEmpty && !allowEmpty)) {
     throw const FormatException('Configuration has no embedded nodes; update subscriptions first');
   }
   final names = nodes.map((node) => node['name'] as String).toList();
@@ -136,7 +137,7 @@ String applySubscriptionFilters(String content, Map<String, String> filters) {
     ]) {
       if (group.containsKey(key)) editor.remove(['proxy-groups', index, key]);
     }
-    if (selected.isEmpty && directOptions[groupName] == false) {
+    if (selected.isEmpty && directOptions[groupName] == false && !allowEmpty) {
       throw FormatException('No nodes match $groupName; adjust the regex or select DIRECT');
     }
     editor.update(['proxy-groups', index, 'proxies'],

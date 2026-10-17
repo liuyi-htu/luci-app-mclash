@@ -184,9 +184,12 @@ String buildSubscriptionConfig(String template, String subscription,
         selected.isEmpty ? ['DIRECT'] : selected);
   }
   final filtered = applySubscriptionFilters(
-      editor.toString(), readSubscriptionFilters(configContent));
+      editor.toString(), readSubscriptionFilters(configContent),
+      allowEmpty: allowEmpty);
   final host = readSubscriptionHost(previousConfig ?? template);
-  final result = host.isEmpty ? filtered : editSubscriptionHost(filtered, host);
+  final result = host.isEmpty || nodes.isEmpty
+      ? filtered
+      : editSubscriptionHost(filtered, host);
   return restoreManualNodes(
       applySavedProxyChains(
           writeManualNodeNames(
