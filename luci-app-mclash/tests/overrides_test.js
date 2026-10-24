@@ -322,3 +322,49 @@ assert.match(migrated,/# Mclash OpenWrt capture:/);
 assert.match(migrated,/# Mclash OpenWrt subscription-names: \["Custom"\]/);
 assert.match(migrated,/MATCH,🌍 Foreign/);
 assert.match(migrated,/name: Custom/);
+
+// Exercise native YAML input through the shipped JavaScript bridge.
+const yamlBase = 'proxies: [{name: Existing, type: direct}]\nproxy-groups: [{name: Select, type: select, proxies: [Existing, DIRECT]}]\nrules: ["MATCH,Select"]\n';
+const importNodes = text => api.call('addNode', yamlBase, {link: text});
+for (const text of ['{name: A, type: direct}', 'name: A\ntype: direct', '- {name: A, type: direct}', '[{name: A, type: direct}]', 'proxies: [{name: A, type: direct}]\nrules: []', '\uFEFF---\nname: A\ntype: direct\n---\n']) {
+  assert.deepEqual(api.call('summary', importNodes(text)).manualNodes, ['A']);
+}
+const expandedYaml = importNodes(`
+headers: &headers {Host: original.example, X-Test: keep}
+first: &first {type: vmess, port: 443, network: ws, ws-opts: {headers: *headers}}
+second: &second {port: 80, udp: true}
+proxies:
+  - {name: A, <<: [*first, *second], port: 8443}
+  - name: B
+    type: future-core-protocol
+    arbitrary-options: {peers: [{ip: '::1', allowed: ['0.0.0.0/0']}], enabled: true}
+rules: ["MATCH,REJECT"]
+dns: {nameserver: [9.9.9.9]}
+`);
+assert.match(expandedYaml, /port: 8443/);
+assert.match(expandedYaml, /udp: true/);
+assert.match(expandedYaml, /Host: original.example/);
+assert.match(expandedYaml, /future-core-protocol/);
+assert.match(expandedYaml, /arbitrary-options:/);
+assert.doesNotMatch(expandedYaml, /<<:|9\.9\.9\.9|MATCH,REJECT/);
+assert.match(expandedYaml, /MATCH,Select/);
+assert.deepEqual(api.call('summary', expandedYaml).groups[0].proxies, ['A', 'B', 'Existing', 'DIRECT']);
+assert.ok(expandedYaml.split('\n').filter(line => /^\s*- \{.*name:/.test(line)).length >= 3);
+assert.deepEqual(api.call('summary', importNodes('name: A\ntype: direct\n---\nname: B\ntype: dns')).manualNodes, ['A', 'B']);
+const renamedYaml = importNodes(`
+- {name: Existing, type: direct}
+- {name: Select, type: custom, dialer-proxy: Existing}
+- {name: DIRECT, type: direct}
+- {name: Existing (2), type: custom, dialer-proxy: Select}
+`);
+assert.deepEqual(api.call('summary', renamedYaml).manualNodes, ['Existing (2)', 'Select (2)', 'DIRECT (2)', 'Existing (2) (2)']);
+assert.match(renamedYaml, /dialer-proxy: Existing \(2\)/);
+assert.match(renamedYaml, /dialer-proxy: Select \(2\)/);
+const hostYaml = api.call('addNode', api.call('host', yamlBase, {host: 'override.example'}), {link: '{name: WS, type: vmess, network: ws, ws-opts: {headers: {Host: original.example}}}'});
+assert.match(hostYaml, /Host: original.example/);
+for (const text of ['', 'proxies: {}', 'rules: []', 'name: A', '[{name: A, type: direct}, {name: B}]', '[{name: A, type: direct}, {name: A, type: direct}]', '{name: A, type: http, <<: *missing}', '{name: A, type: http, <<: 123}', 'name: A\ntype: http\npassword: [private-secret', 'name: A\ntype: http\noptions: &loop [*loop]']) {
+  assert.throws(() => importNodes(text), error => !error.message.includes('private-secret'));
+}
+assert.throws(() => importNodes('x'.repeat(8 * 1024 * 1024 + 1)), /8 MiB/);
+assert.throws(() => importNodes('é'.repeat(4 * 1024 * 1024 + 1)), /8 MiB/);
+console.log('Mihomo YAML imports preserve fields, expand aliases and remap batch references atomically');

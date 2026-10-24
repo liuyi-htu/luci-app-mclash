@@ -109,8 +109,14 @@ printf 'proxies: []\\n' > "$output"
         self.assertNotEqual(self.run_command('save').returncode, 0)
         self.assertEqual(self.config.read_text(), 'valid old config\n')
 
+    def test_profile_above_old_limit_can_be_saved(self):
+        profile = 'valid' + 'x' * 1048576
+        self.upload.write_text(profile)
+        self.assertEqual(self.run_command('save').returncode, 0)
+        self.assertEqual(self.config.read_text(), profile)
+
     def test_large_profile_and_symlink_rejected(self):
-        self.upload.write_text('valid' + 'x' * 1048576)
+        self.upload.write_text('valid' + 'x' * 8388608)
         self.assertNotEqual(self.run_command('save').returncode, 0)
         self.upload.symlink_to(self.config)
         self.assertNotEqual(self.run_command('save').returncode, 0)

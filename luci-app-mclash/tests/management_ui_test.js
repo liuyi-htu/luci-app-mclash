@@ -2,7 +2,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 let dialog, saved;
-const data = {actions:['groups','rules','prependProxy'],groups:[{name:'test',type:'select',proxies:['DIRECT']}],managedGroups:[],filters:{},direct:{},policies:['DIRECT'],rules:['DOMAIN,one.example,DIRECT','MATCH,DIRECT'],chains:{'1':{front:[],frontTargets:[]}},nodes:['A','B'],nextChainId:'2'};
+const notices = [];
+const data = {actions:['addNode','groups','rules','prependProxy'],manualNodes:[],groups:[{name:'test',type:'select',proxies:['DIRECT']}],managedGroups:[],filters:{},direct:{},policies:['DIRECT'],rules:['DOMAIN,one.example,DIRECT','MATCH,DIRECT'],chains:{'1':{front:[],frontTargets:[]}},nodes:['A','B'],nextChainId:'2'};
 function E(tag,attrs,children) {
  const n={tag,attrs:attrs||{},children:children||[],value:(attrs||{}).value||'',checked:(attrs||{}).checked!=null,
   setAttribute(k,v){this.attrs[k]=v;},appendChild(c){this.children.push(c);},removeChild(c){this.children.splice(this.children.indexOf(c),1);},addEventListener(k,v){(this.listeners||(this.listeners={}))[k]=v;}};
@@ -12,12 +13,30 @@ function E(tag,attrs,children) {
 }
 const Module=new Function('baseclass','E','_','ui','overrides','notifications',fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/mclash/management.js','utf8'))(
  {extend:x=>function(){Object.assign(this,x);}},E,(text,context)=>context==='mclash'?text:({Edit:'\u7f16\u8f91',Delete:'\u5220\u9664',Cancel:'\u53d6\u6d88',Save:'\u4fdd\u5b58'}[text]||text),{showModal(title,children){dialog=E('div',{},children);},hideModal(){dialog=null;}},
- {call(op,content,args){if(op==='summary')return data;saved=args;if(op==='rules')data.rules=args.rules;return content;}},{show(message,type){if(type==='error')throw new Error(message);}});
+ {call(op,content,args){if(op==='summary')return data;saved=args;if(op==='rules')data.rules=args.rules;return content;}},{show(message,type){notices.push({message,type});}});
 const manager=new Module().render(()=>'',async()=>{},()=>false);
 const nodes=n=>n&&typeof n==='object'?[n,...(n.children||[]).flatMap(nodes)]:[];
 const buttons=n=>nodes(n).filter(n=>n.tag==='button');
 async function click(root,label){const n=buttons(root).find(n=>n.attrs['aria-label']===label||n.children[0]===label);assert.ok(n,label);await n.attrs.click({currentTarget:n});}
 (async()=>{
+ await click(manager.element,'Add node');
+ const editor=nodes(dialog).find(n=>n.attrs['aria-label']==='Node URL or Mihomo YAML');
+ const file=nodes(dialog).find(n=>n.tag==='input'&&n.attrs.type==='file');
+ editor.value='name: Pasted\ntype: direct';
+ file.files=[];await file.attrs.change();assert.equal(editor.value,'name: Pasted\ntype: direct');
+ file.files=[{size:8*1024*1024+1,arrayBuffer(){throw new Error('must not read oversized files');}}];
+ await file.attrs.change();assert.match(notices.pop().message,/8 MiB/);assert.equal(editor.value,'name: Pasted\ntype: direct');
+ file.files=[{size:2,arrayBuffer:async()=>new Uint8Array([0xc3,0x28]).buffer}];
+ await file.attrs.change();assert.match(notices.pop().message,/UTF-8/);assert.equal(editor.value,'name: Pasted\ntype: direct');
+ const snippet='- {name: A, type: direct}\n- {name: B, type: dns}';
+ let finishRead;
+ file.files=[{size:snippet.length,arrayBuffer:()=>new Promise(resolve=>{finishRead=resolve;})}];
+ const reading=file.attrs.change();
+ assert.equal(editor.disabled,true);assert.equal(buttons(dialog).find(n=>n.children[0]==='Add').disabled,true);
+ finishRead(new TextEncoder().encode(snippet).buffer);await reading;
+ assert.equal(editor.value,snippet);assert.equal(editor.disabled,false);
+ await click(dialog,'Add');assert.equal(saved.link,snippet);assert.equal(dialog,null);
+ assert.deepEqual(notices,[]);
  data.dnsYaml='enable: true\nnameserver:\n  - https://dns.example/dns-query\n';
  await click(manager.element,'DNS management');
  assert.deepEqual(buttons(dialog).map(n=>n.children[0]),['Cancel','Save']);

@@ -1526,8 +1526,8 @@ msgid "The configuration must not be empty"
 msgstr "配置不能为空"
 
 msgctxt "mclash"
-msgid "The configuration must not exceed 1 MiB"
-msgstr "配置不能超过 1 MiB"
+msgid "The configuration must not exceed 8 MiB"
+msgstr "配置不能超过 8 MiB"
 
 msgctxt "mclash"
 msgid "The current operation is not a subscription fetch"
@@ -1868,3 +1868,63 @@ msgstr "配置语言转换失败"
 msgctxt "mclash"
 msgid "Failed to save configuration language"
 msgstr "保存配置语言失败"
+
+msgctxt "mclash"
+msgid "Node input exceeds 8 MiB"
+msgstr "节点内容过大（最多 8 MiB）"
+
+msgctxt "mclash"
+msgid "Node input is too deeply nested or too large after expansion"
+msgstr "节点内容嵌套过深或展开后过大"
+
+msgctxt "mclash"
+msgid "Node YAML contains a circular reference"
+msgstr "节点 YAML 包含循环引用"
+
+msgctxt "mclash"
+msgid "YAML merge key << must reference a map or list of maps"
+msgstr "YAML 合并键 << 必须引用映射或映射列表"
+
+msgctxt "mclash"
+msgid "Node YAML field names must be strings"
+msgstr "节点 YAML 字段名必须是字符串"
+
+msgctxt "mclash"
+msgid "proxies must be a node list"
+msgstr "proxies 必须是节点列表"
+
+msgctxt "mclash"
+msgid "Each Mihomo node requires a nonempty name and type"
+msgstr "每个 Mihomo 节点都需要非空的 name 和 type"
+
+msgctxt "mclash"
+msgid "Invalid Mihomo YAML; include anchor definitions when using aliases"
+msgstr "Mihomo YAML 格式无效；使用别名时请同时复制锚点定义"
+
+msgctxt "mclash"
+msgid "No Mihomo nodes found"
+msgstr "未找到 Mihomo 节点"
+
+msgctxt "mclash"
+msgid "Duplicate node names in import; use unique names first"
+msgstr "导入内容中节点名称重复，请先修改为不同名称"
+
+msgctxt "mclash"
+msgid "Wait for the node file to finish loading."
+msgstr "请等待节点文件读取完成。"
+
+msgctxt "mclash"
+msgid "Unable to read node file; select a UTF-8 YAML file."
+msgstr "无法读取节点文件，请选择 UTF-8 编码的 YAML 文件。"
+
+msgctxt "mclash"
+msgid "Choose file"
+msgstr "选择文件"
+
+msgctxt "mclash"
+msgid "Node URL or Mihomo YAML"
+msgstr "节点链接或 Mihomo YAML"
+
+msgctxt "mclash"
+msgid "Supports a single node, node lists, full configurations and YAML anchors. UTF-8 files up to 8 MiB."
+msgstr "支持单个节点、节点列表、完整配置及 YAML 锚点。UTF-8 文件最大 8 MiB。"

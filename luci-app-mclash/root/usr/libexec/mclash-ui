@@ -41,7 +41,7 @@ validate() {
 	[ -x "$CORE" ] || fail 'Install the /usr/bin/mihomo core first'
 	[ -f "$1" ] && [ ! -L "$1" ] || fail 'Configuration file is missing or is a symbolic link'
 	[ -s "$1" ] || fail 'The configuration must not be empty'
-	[ "$(wc -c < "$1")" -le 1048576 ] || fail 'The configuration must not exceed 1 MiB'
+	[ "$(wc -c < "$1")" -le 8388608 ] || fail 'The configuration must not exceed 8 MiB'
 	# Core diagnostics may contain secrets: expose only a generic result.
 	"$TIMEOUT" 30 "$CORE" -t -d /etc/mclash -f "$1" >/dev/null 2>&1 || fail 'Mihomo configuration validation failed or timed out; check YAML, nodes and rule resources'
 }
@@ -111,7 +111,7 @@ case "$1" in
 			fail 'Service is starting or exiting; stop it before changing the configuration'
 		fi
 		[ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] || fail 'Configuration upload is missing'
-		[ "$(wc -c < "$UPLOAD")" -le 1048576 ] || fail 'The configuration must not exceed 1 MiB'
+		[ "$(wc -c < "$UPLOAD")" -le 8388608 ] || fail 'The configuration must not exceed 8 MiB'
 		CANDIDATE="$(mktemp /etc/mclash/.config.XXXXXX)" || fail 'Unable to create temporary configuration'
 		/usr/libexec/mclash-config-language "$UPLOAD" > "$CANDIDATE" || fail 'Failed to read configuration'
 		validate "$CANDIDATE"

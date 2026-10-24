@@ -55,13 +55,36 @@ return baseclass.extend({
 			}));
 		}
 		function openNodes() {
-			var s = summary(), link = area('', 4);
+			var s = summary(), link = area('', 8), reading = false;
+			var add = action(_('Add', 'mclash'), function() {
+				if (reading) throw new Error(_('Wait for the node file to finish loading.', 'mclash'));
+				return change('addNode', {link: link.value.trim()}).then(ui.hideModal);
+			}, 'cbi-button-save');
+			var file = E('input', {'type': 'file', 'accept': '.yaml,.yml,.txt,application/yaml,text/yaml,text/plain', 'style': 'display:none', 'change': function() {
+				var selected = file.files && file.files[0];
+				if (!selected || reading) return;
+				if (selected.size > 8 * 1024 * 1024) {
+					notice(new Error(_('Node input exceeds 8 MiB', 'mclash'))); file.value = ''; return;
+				}
+				reading = true; add.mclashBusy = true; add.disabled = true; link.disabled = true; choose.disabled = true;
+				return selected.arrayBuffer().then(function(bytes) {
+					link.value = new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+				}).catch(function() {
+					notice(new Error(_('Unable to read node file; select a UTF-8 YAML file.', 'mclash')));
+				}).finally(function() {
+					reading = false; add.mclashBusy = false; add.disabled = locked; link.disabled = false; choose.disabled = false; file.value = '';
+				});
+			}});
+			var choose = E('button', {'type': 'button', 'class': 'btn mclash-button', 'click': function() { file.click(); }}, [_('Choose file', 'mclash')]);
 			ui.showModal(_('Add node', 'mclash'), [
-				listRows(s.manualNodes, null, function(name) { return change('deleteNode', {name: name}); }, function(names) { return change('reorderNodes', {names: names}); }),
-				field(_('Node URL', 'mclash'), link),
-				E('p', {}, ['VMess / VLESS / Trojan / SS / Hysteria2 / TUIC / AnyTLS / SOCKS / HTTP']),
-				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Cancel', 'mclash')]), ' ',
-					action(_('Add', 'mclash'), function() { return change('addNode', {link: link.value.trim()}).then(ui.hideModal); }, 'cbi-button-save')])
+				E('div', {'class': 'mclash-modal-scroll', 'style': 'max-height:65vh;overflow:auto'}, [
+					listRows(s.manualNodes, null, function(name) { return change('deleteNode', {name: name}); }, function(names) { return change('reorderNodes', {names: names}); }),
+					field(_('Node URL or Mihomo YAML', 'mclash'), link),
+					E('p', {}, [_('Supports a single node, node lists, full configurations and YAML anchors. UTF-8 files up to 8 MiB.', 'mclash')]),
+					E('p', {}, ['VMess / VLESS / Trojan / SS / Hysteria2 / TUIC / AnyTLS / SOCKS / HTTP']),
+					file, choose
+				]),
+				E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Cancel', 'mclash')]), ' ', add])
 			]);
 		}
 		function openHost() {

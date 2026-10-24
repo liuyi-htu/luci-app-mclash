@@ -8,6 +8,9 @@ Basic settings provides service controls, dashboard access, browser/router laten
 
 Nodes and rules manages subscriptions, manual nodes, Host overrides, pre-proxy chains, groups, rule providers, rules and DNS. Each subscription has a name and independent update. Stop the service before editing configuration. Invalid saves retain the existing file. Runtime configuration is read-only and refreshes when opened.
 
+**Add node** accepts share URLs or native Mihomo YAML pasted into the editor or loaded with **Choose file** (UTF-8, up to 8 MiB). YAML can contain a single node, a node list, or a full configuration with `proxies`; multiple documents, anchors, aliases and merge keys are supported. Only nodes are imported, preserving protocol-specific fields and YAML Host settings. Conflicting names are renamed automatically, with references between nodes in the same batch updated. Duplicate names within the input are rejected. The resulting configuration must also fit within 8 MiB and pass the installed core's validation before it replaces the active file.
+
+
 The default controller is `0.0.0.0:9097`. Change its address and port under Basic settings. No secret is set by default; the service limits controller access to the router and selected LAN interfaces. Zashboard is hosted on the router and opens separately.
 
 ## Capture and DNS

@@ -117,7 +117,7 @@ return view.extend({
 					text = overrides.call('network', text, nextNetwork || networkOptions);
 				}
 				if (!text.trim()) throw new Error(_('The configuration must not be empty', 'mclash'));
-				if (new Blob([text]).size > 1048576) throw new Error(_('The configuration must not exceed 1 MiB', 'mclash'));
+				if (new Blob([text]).size > 8388608) throw new Error(_('The configuration must not exceed 8 MiB', 'mclash'));
 				return fs.write('/etc/mclash/config.upload.yaml', text, 384);
 			}).then(function() { return command('save'); }).then(function(message) {
 				editor.value = text;
