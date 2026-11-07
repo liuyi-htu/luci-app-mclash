@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'network.dart';
+import 'access.dart';
+import 'node_domains.dart';
 import 'legacy.dart';
 import 'dart:js_interop';
 import 'package:yaml/yaml.dart';
@@ -37,6 +39,14 @@ String handle(String action, String content, String payload, {bool normalized = 
     if (args['template'] is String) args['template'] = migrateLegacyConfig(args['template'] as String);
     Object? result;
     switch (action) {
+      case 'nodeDomains':
+        result = nodeDomains(content);
+      case 'resolveNodes':
+        result = resolveNodeDomains(content, args['addresses'] as Map,
+            fakeIpRanges: List<String>.from(args['fakeIpRanges'] ?? []));
+      case 'nodeSource':
+        final config = loadYaml(content) as Map;
+        result = (YamlEditor('')..update([], {'proxies': plain(config['proxies'] ?? [])})).toString();
       case 'formatNodes':
         result = content;
       case 'summary':
@@ -46,6 +56,7 @@ String handle(String action, String content, String payload, {bool normalized = 
           'dnsYaml': (YamlEditor('')..update([], {if (config['dns'] is Map) for (final entry in (config['dns'] as Map).entries) if (!['enable', 'listen', 'ipv6'].contains(entry.key)) '${entry.key}': plain(entry.value)})).toString(),
           'controller': config['external-controller'] ?? '',
           'secret': config['secret'] ?? '',
+          'fakeIpRanges': nodeFakeIpRanges(content),
           'manualNodes': savedManualNodeNames(content),
           'nodes': savedProxyNodeNames(content),
           'host': readSubscriptionHost(content),
@@ -56,7 +67,7 @@ String handle(String action, String content, String payload, {bool normalized = 
           'filters': readSubscriptionFilters(content),
           'direct': readGroupDirectOptions(content),
           'providers': configRuleProviders(content),
-          'rules': configRules(content),
+          'rules': accessUserRules(content),
           'policies': configPolicies(content),
           'actions': configActionOrder(content),
         };
@@ -108,7 +119,7 @@ String handle(String action, String content, String payload, {bool normalized = 
       case 'deleteProvider':
         result = deleteConfigRuleProvider(content, args['name'] as String);
       case 'rules':
-        result = updateConfigRules(content, List<String>.from(args['rules']));
+        result = updateConfigRules(content, List<String>.from(args['rules'])).split('\n').where((line) => !line.startsWith(accessRulesPrefix)).join('\n');
       case 'subscription':
         result = buildSubscriptionConfig(args['template'] as String,
             mergeSubscriptionSources(List<String>.from(args['sources']), prefixes: args['prefixes'] == null ? null : List<String>.from(args['prefixes'])),

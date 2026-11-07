@@ -2,6 +2,7 @@
 # Own table/chains/routes only. Values are parsed as data and strictly validated.
 umask 077
 CONFIG=/etc/mclash/config.yaml
+[ ! -s /var/run/mclash/runtime.yaml ] || CONFIG=/var/run/mclash/runtime.yaml
 STATE=/var/run/mclash
 NFT=/usr/sbin/nft
 IP=/sbin/ip
@@ -27,7 +28,7 @@ load() {
 	local options keys key name type
 	options="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$CONFIG")"
 	[ -n "$options" ] || return 0
-	[ "$(printf '%s' "$options" | wc -c)" -le 4096 ] || fail 'Capture settings are too large'
+	[ "$(printf '%s' "$options" | wc -c)" -le 32768 ] || fail 'Capture settings are too large'
 	. /usr/share/libubox/jshn.sh
 	json_load "$options" || fail 'Invalid capture settings'
 	json_get_var MODE mode
@@ -298,11 +299,10 @@ up() {
 	"$NFT" -f "$STATE/network.nft" || fail 'Failed to apply nftables capture rules'
 	printf '%s\n' "$MODE" > "$STATE/network.ready"
 	trap 'rmdir "$STATE/network.lock" 2>/dev/null' EXIT
-	local router_status=Disabled lan_status=Disabled ipv6_status=Disabled
+	local router_status=Disabled ipv6_status=Disabled
 	[ "$ROUTER" != 1 ] || router_status=Enabled
 	[ "$IPV6" != 1 ] || ipv6_status=Enabled
-	if [ "$LAN_PROXY" = 1 ]; then lan_status=All devices; elif [ -n "$ACCESS4$ACCESS6" ]; then lan_status=Only allowlisted devices; fi
-	network_log "Proxy scope: router traffic=$router_status, LAN devices=$lan_status, IPv6=$ipv6_status; interfaces: $IFACES"
+	network_log "Proxy scope: router traffic=$router_status, IPv6=$ipv6_status; interfaces: $IFACES"
 	if [ "$LAN_PROXY" = 1 ]; then
 		network_log 'Access control: all LAN devices captured; no source allowlist required'
 	elif [ -n "$ACCESS4$ACCESS6" ]; then

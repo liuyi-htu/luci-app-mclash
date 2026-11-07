@@ -4,9 +4,12 @@ Run checks from the repository root. Set `PYTHONDONTWRITEBYTECODE=1` to avoid Py
 
 | Test | Coverage |
 | --- | --- |
+| domain_resolution_test.py | Bounded system/core DNS, authenticated queries and safe failure with native SDK jshn |
+| domain_resolution_core_test.py | Real-core fake-IP DNS bypass, IPv4/IPv6 conversion and safe controller failure on loopback; requires MCLASH_TEST_CORE |
 | backend_test.py | Service state, configuration protection, subscription fetch and locks |
 | probe_test.py / browser_probe_test.js | Router/browser latency probes |
 | frontend_test.js / management_ui_test.js | UI interaction, configuration protection and dialogs |
+| source_policy_core_test.py | Real-core source-policy routing with loopback-only HTTP; requires MCLASH_TEST_CORE |
 | overrides_test.js | Shared configuration processing, subscriptions, DNS and capture |
 | i18n_test.js / translation_package_check.py | English fallback, Chinese catalog coverage and translation package contents |
 | log_test.py | Size bounds, selective clearing and lifecycle separators |

@@ -368,3 +368,82 @@ for (const text of ['', 'proxies: {}', 'rules: []', 'name: A', '[{name: A, type:
 assert.throws(() => importNodes('x'.repeat(8 * 1024 * 1024 + 1)), /8 MiB/);
 assert.throws(() => importNodes('é'.repeat(4 * 1024 * 1024 + 1)), /8 MiB/);
 console.log('Mihomo YAML imports preserve fields, expand aliases and remap batch references atomically');
+
+// Source policies keep the firewall allowlist compatible with old profiles.
+const accessBase = 'mode: rule\nproxies: [{name: A, type: http, server: a.example, port: 80}, {name: B, type: http, server: b.example, port: 80}]\nproxy-groups: [{name: Select, type: select, proxies: [A, B]}]\nrules: ["DOMAIN,keep.example,DIRECT", "MATCH,Select"]\n';
+const accessOptions = {mode:'tproxy',interfaces:['br-lan'],lan:false,router:true,ipv6:true,stack:'mixed',access:['192.168.1.10-192.168.1.20','fd00::10','192.168.2.0/24'],accessPolicies:{'192.168.1.10-192.168.1.20':'A','fd00::10':'B'}};
+const accessConfig = api.call('network',accessBase,accessOptions);
+assert.deepEqual(api.call('summary',accessConfig).network,accessOptions);
+assert.deepEqual(api.call('summary',accessConfig).rules,['DOMAIN,keep.example,DIRECT','MATCH,Select']);
+assert.match(accessConfig,/SRC-IP-CIDR,fd00::10\/128,B/);
+assert.doesNotMatch(accessConfig, /\\\//, 'Go YAML rejects escaped slash in emitted rules');
+const accessBody=accessConfig.split('\n').filter(line=>!line.startsWith('#')).join('\n');
+const ipv4Rules=[...accessBody.matchAll(/SRC-IP-CIDR,(192\.168\.1\.\d+)\/(\d+),A/g)];
+assert.ok(ipv4Rules.length>0);
+let covered=[];
+for (const [,ip,prefix] of ipv4Rules) {
+ const start=Number(ip.split('.').at(-1)),count=2**(32-Number(prefix));
+ for(let n=start;n<start+count;n++)covered.push(n);
+}
+assert.deepEqual(covered,[10,11,12,13,14,15,16,17,18,19,20]);
+assert.doesNotMatch(accessConfig,/SRC-IP-CIDR,192\.168\.2/);
+assert.equal(api.call('network',accessConfig,accessOptions),accessConfig,'network reapplication must not duplicate managed rules');
+for(const mode of ['tun','tproxy']) {
+ const applied=api.call('network',accessConfig,{...accessOptions,mode});
+ assert.deepEqual(api.call('summary',applied).rules,['DOMAIN,keep.example,DIRECT','MATCH,Select']);
+}
+const defaultAccess=api.call('network',accessConfig,{...accessOptions,accessPolicies:{}});
+assert.doesNotMatch(defaultAccess,/SRC-IP-CIDR|access-rules:/);
+assert.deepEqual(api.call('summary',defaultAccess).network.access,accessOptions.access);
+const disabledAccess=api.call('network',accessConfig,{...accessOptions,mode:'none'});
+assert.doesNotMatch(disabledAccess,/SRC-IP-CIDR|access-rules:/);
+assert.deepEqual(api.call('summary',disabledAccess).network.accessPolicies,accessOptions.accessPolicies);
+for(const patch of [ {accessPolicies:{'192.168.9.1':'A'}}, {accessPolicies:{'fd00::10':'Missing'}}, {accessPolicies:{'fd00::10':'bad,node'}}, {accessPolicies:[]} ]) {
+ assert.throws(()=>api.call('network',accessConfig,{...accessOptions,...patch}));
+}
+const editedAccess=api.call('rules',accessConfig,{rules:['MATCH,DIRECT']});
+const reappliedAccess=api.call('network',editedAccess,accessOptions);
+assert.deepEqual(api.call('summary',reappliedAccess).rules,['MATCH,DIRECT']);
+const refreshedAccess=api.call('subscription',accessConfig,{template:accessBase,sources:[accessBase],refresh:true});
+assert.deepEqual(api.call('summary',refreshedAccess).network.accessPolicies,accessOptions.accessPolicies);
+assert.equal((refreshedAccess.split('\n').filter(line=>!line.startsWith('#')).join('\n').match(/SRC-IP-CIDR,fd00::10\/128,B/g)||[]).length,1);
+const fullRange=api.call('network',accessBase,{...accessOptions,access:['0.0.0.0-255.255.255.255'],accessPolicies:{'0.0.0.0-255.255.255.255':'A'}});
+assert.match(fullRange,/SRC-IP-CIDR,0\.0\.0\.0\/0,A/);
+console.log('Source policies cover exact IP ranges, retain default routing and survive subscription refresh');
+
+const domainsSource = `proxies:
+  - {name: TLS, type: trojan, server: shared.example, port: 443, password: sample}
+  - {name: WS, type: vless, server: shared.example, port: 443, tls: true, network: ws, ws-opts: {path: /socket}}
+  - {name: Explicit, type: vmess, server: other.example, port: 443, tls: true, servername: explicit.example, network: ws, ws-opts: {headers: {host: explicit-host.example, X-Test: keep}}}
+  - {name: V6, type: anytls, server: ipv6.example, port: 443, password: sample}
+  - {name: Literal, type: http, server: 192.0.2.10, port: 80}
+  - {name: Failed, type: ss, server: failed.example, port: 80, cipher: none, password: sample}
+`;
+assert.deepEqual(api.call('nodeDomains',domainsSource),['shared.example','other.example','ipv6.example','failed.example']);
+const convertedDomains=api.call('resolveNodes',domainsSource,{addresses:{'shared.example':'203.0.113.2','other.example':'203.0.113.3','ipv6.example':'2001:db8::1','failed.example':'not-an-IP'}});
+assert.equal((convertedDomains.match(/server: 203\.0\.113\.2/g)||[]).length,2);
+assert.match(convertedDomains,/sni: shared.example/);
+assert.match(convertedDomains,/servername: shared.example/);
+assert.match(convertedDomains,/Host: shared.example/);
+assert.match(convertedDomains,/servername: explicit.example/);
+assert.match(convertedDomains,/host: explicit-host.example/);
+assert.match(convertedDomains,/X-Test: keep/);
+assert.match(convertedDomains,/server: failed.example/);
+assert.match(convertedDomains,/2001:db8::1/);
+assert.match(domainsSource,/server: shared.example/,'the original cache is never replaced');
+for (const address of ['198.18.0.4','198.19.255.254']) {
+ assert.match(api.call('resolveNodes',domainsSource,{addresses:{'shared.example':address}}),/server: shared.example/,'benchmark fake addresses never become node servers');
+}
+const fakeIpContext=api.call('summary',domainsSource+'dns: {enhanced-mode: fake-ip, fake-ip-range: 198.51.100.1/24, fake-ip-range6: "fd00:1234::1/64"}\n').fakeIpRanges;
+assert.deepEqual(fakeIpContext,['198.51.100.1/24','fd00:1234::1/64']);
+assert.deepEqual(api.call('summary',domainsSource+'dns: {enhanced-mode: redir-host}\n').fakeIpRanges,[]);
+assert.deepEqual(api.call('summary',domainsSource+'dns: {enhanced-mode: fake-ip}\n').fakeIpRanges,['198.18.0.1/16','fc00::/18']);
+for (const address of ['198.51.100.0','198.51.100.255','fd00:1234::42','fd00:1234:0:0:ffff:ffff:ffff:ffff']) {
+ assert.match(api.call('resolveNodes',domainsSource,{addresses:{'shared.example':address},fakeIpRanges:fakeIpContext}),/server: shared.example/,'configured IPv4/IPv6 fake ranges retain domains');
+}
+for (const address of ['198.51.101.1','fd00:1234:0:1::42','2001:db8::42']) {
+ assert.doesNotMatch(api.call('resolveNodes',domainsSource,{addresses:{'shared.example':address},fakeIpRanges:fakeIpContext}),/server: shared.example/,'addresses outside configured ranges remain usable');
+}
+const cachedNodeSource=api.call('nodeSource',domainsSource+'dns: {enable: false}\nrules: ["MATCH,REJECT"]\n');
+assert.doesNotMatch(cachedNodeSource,/dns:|rules:/);
+console.log('Node domain conversion preserves TLS/WS identity, retains unresolved domains and rejects default/custom fake IPs');

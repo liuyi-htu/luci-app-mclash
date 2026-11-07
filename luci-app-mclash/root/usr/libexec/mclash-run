@@ -5,6 +5,7 @@ CORE=/usr/bin/mihomo
 NETWORK=/usr/libexec/mclash-network
 DASHBOARD=/usr/libexec/mclash-dashboard
 CONFIG=/etc/mclash/config.yaml
+[ ! -s /var/run/mclash/runtime.yaml ] || CONFIG=/var/run/mclash/runtime.yaml
 STATE=/var/run/mclash
 child=''
 logchild=''
@@ -32,7 +33,7 @@ cleanup() {
 		wait "$logchild" 2>/dev/null || true
 	fi
 	[ -z "$pipe" ] || rm -f "$pipe"
-	rm -f "$STATE/core.pid"
+	rm -f "$STATE/core.pid" "$STATE/starting"
 	if [ "$cleanup_failed" = 0 ]; then service_log 'Service stopped'; else service_log 'Stop failed: capture or controller cleanup is incomplete'; fi
 	"$LOG" separator-service || true
 }
@@ -84,6 +85,7 @@ if [ "$mode" = tun ] || [ "$mode" = tproxy ]; then
 	if [ "$ready" != 1 ]; then service_log 'Capture listener readiness failed'; exit 1; fi
 	"$NETWORK" up || { service_log 'Failed to apply capture; check the service log'; exit 1; }
 fi
+rm -f "$STATE/starting"
 service_log "Startup complete, capture mode: ${mode:-none}"
 [ "$mode" != none ] || service_log 'Automatic capture disabled; router and LAN transparent proxying disabled; no capture firewall rules applied'
 "$LOG" separator-service || true

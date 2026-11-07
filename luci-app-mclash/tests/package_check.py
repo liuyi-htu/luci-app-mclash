@@ -37,6 +37,7 @@ else:
     assert fields['Package'] == 'luci-app-mclash'
     assert fields['Architecture'] == 'all'
     version = fields['Version']
+assert 'resolveip' in metadata, 'System DNS resolver dependency missing'
 makefile = (root/'Makefile').read_text().splitlines()
 fields = dict(line.split(':=', 1) for line in makefile if line.startswith(('PKG_VERSION:=', 'PKG_RELEASE:=')))
 expected_version = os.environ.get('MCLASH_PACKAGE_VERSION', fields['PKG_VERSION']+'-r'+fields['PKG_RELEASE'])
@@ -60,9 +61,18 @@ with tempfile.TemporaryDirectory(prefix='mclash-package-') as temporary:
         subprocess.run(['node', '--check', str(script)], check=True)
     for name in ['overrides', 'management', 'proxy', 'template']:
         assert (extracted/'www/luci-static/resources/mclash'/(name+'.js')).is_file()
+    for path in ['mclash/overrides.js', 'view/mclash/overview.js']:
+        delivered = (extracted / 'www/luci-static/resources' / path).read_bytes()
+        expected = (root / 'htdocs/luci-static/resources' / path).read_bytes()
+        if delivered != expected:
+            # LuCI SDKs may apply their own deterministic JavaScript minifier.
+            minifier = sdk / 'staging_dir/host/bin/jsmin'
+            assert minifier.is_file(), path
+            expected = subprocess.check_output([str(minifier)], input=expected)
+        assert delivered == expected, path
     assert (extracted/'usr/share/doc/luci-app-mclash/GPL-3.0.txt').is_file()
     scripts=[extracted/'etc/init.d/mclash', extracted/'etc/uci-defaults/99-luci-app-mclash', *list((extracted/'usr/libexec').glob('mclash-*'))]
-    for name in ['mclash-timeout', 'mclash-ui', 'mclash-update']:
+    for name in ['mclash-timeout', 'mclash-ui', 'mclash-update', 'mclash-run', 'mclash-network', 'mclash-dashboard', 'mclash-resolve']:
         path = Path('usr/libexec') / name
         assert (extracted / path).read_bytes() == (root / 'root' / path).read_bytes(), str(path)
     assert (extracted / 'etc/init.d/mclash').read_bytes() == (root / 'root/etc/init.d/mclash').read_bytes()

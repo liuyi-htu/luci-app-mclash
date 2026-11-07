@@ -2,13 +2,13 @@
 'require baseclass';
 
 function translate(message) {
- var text = String(message), direct = _(text, 'mclash');
+ var text = String(message).replace(/^(Proxy scope: router traffic=.+), LAN devices=[^,]+, IPv6=/, '$1, IPv6='), direct = _(text, 'mclash');
  if (direct !== text) return direct;
  var patterns = [
   [/^Startup complete, capture mode: (.+)$/, 'Startup complete, capture mode: %s'],
   [/^Core exited unexpectedly, exit code=(.+)$/, 'Core exited unexpectedly, exit code=%s'],
   [/^Failed: (.+)$/, 'Failed: %s', true],
-  [/^Proxy scope: router traffic=(.+), LAN devices=(.+), IPv6=(.+); interfaces: (.+)$/, 'Proxy scope: router traffic=%s, LAN devices=%s, IPv6=%s; interfaces: %s', true],
+  [/^Proxy scope: router traffic=(.+), IPv6=(.+); interfaces: (.+)$/, 'Proxy scope: router traffic=%s, IPv6=%s; interfaces: %s', true],
   [/^Access control: IPv4=(.*); IPv6=(.*)$/, 'Access control: IPv4=%s; IPv6=%s', true],
   [/^Mihomo (.+) installed; service remains stopped$/, 'Mihomo %s installed; service remains stopped'],
   [/^Mihomo (.+) installed; service is running again$/, 'Mihomo %s installed; service is running again'],

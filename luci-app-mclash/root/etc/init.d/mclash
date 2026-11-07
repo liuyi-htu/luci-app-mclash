@@ -9,6 +9,20 @@ service_log() {
 }
 
 start_service() {
+	local LOCK=/var/lock/mclash-config.lock result
+	. /usr/libexec/mclash-lock
+	mclash_lock_acquire config-start || { service_log 'Configuration operation is in progress'; return 1; }
+	mkdir -p /var/run/mclash
+	chmod 0700 /var/run/mclash
+	date +%s > /var/run/mclash/starting
+	prepare_service
+	result=$?
+	[ "$result" = 0 ] || rm -f /var/run/mclash/starting
+	mclash_lock_release
+	return "$result"
+}
+
+prepare_service() {
 	[ -x /usr/bin/mihomo ] || { logger -t mclash 'Mihomo core is missing'; service_log 'Startup failed: Mihomo core is missing'; return 1; }
 	[ -s /etc/mclash/config.yaml ] || { service_log 'Startup failed: configuration is empty or missing'; return 1; }
 	umask 077
@@ -27,13 +41,16 @@ start_service() {
 		return 1
 	fi
 	mv -f "$candidate" /etc/mclash/config.yaml || { rm -f "$candidate"; service_log 'Failed to save configuration language'; return 1; }
+	cp /etc/mclash/config.yaml /var/run/mclash/.runtime.yaml || { service_log 'Failed to snapshot runtime configuration'; return 1; }
+	chmod 0600 /var/run/mclash/.runtime.yaml
+	mv -f /var/run/mclash/.runtime.yaml /var/run/mclash/runtime.yaml || return 1
 	procd_open_instance main
 	procd_set_param command /usr/libexec/mclash-run
 	procd_set_param term_timeout 15
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1
 	procd_set_param stderr 1
-	procd_set_param file /etc/mclash/config.yaml
+	procd_set_param file /var/run/mclash/runtime.yaml
 	procd_close_instance
 }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'access.dart';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
@@ -74,16 +75,45 @@ Map<String, dynamic> checkedNetwork(Map args) {
   for (final key in ['lan', 'router', 'ipv6']) {
     if (args[key] != null && args[key] is! bool) throw const FormatException('Toggles must be boolean');
   }
-  return {'mode': mode, 'interfaces': interfaces, 'lan': args['lan'] ?? true, 'access': checkedAccess(args['access']), 'router': args['router'] ?? true, 'ipv6': args['ipv6'] ?? false, 'stack': stack};
+  final access = checkedAccess(args['access']);
+  final policies = <String, String>{};
+  if (args['accessPolicies'] != null) {
+    if (args['accessPolicies'] is! Map) throw const FormatException('Invalid access-control policies');
+    for (final entry in (args['accessPolicies'] as Map).entries) {
+      if (entry.key is! String || entry.value is! String) throw const FormatException('Invalid access-control policies');
+      final source = checkedAccess([entry.key]).single;
+      final target = entry.value as String;
+      if (!access.contains(source) || target.isEmpty || target.length > 200 || RegExp(r'[,\r\n]').hasMatch(target)) {
+        throw const FormatException('Invalid access-control policy; select a source and a valid node');
+      }
+      policies[source] = target;
+    }
+  }
+  return {'mode': mode, 'interfaces': interfaces, 'lan': args['lan'] ?? true, 'access': access, if (policies.isNotEmpty) 'accessPolicies': policies, 'router': args['router'] ?? true, 'ipv6': args['ipv6'] ?? false, 'stack': stack};
 }
 
 String applyNetwork(String content, Map args) {
   final opts = checkedNetwork(args);
   final mode = opts['mode'];
   final active = mode != 'none';
-  final editor = YamlEditor(content.split('\n').where((line) => !line.startsWith(networkPrefix)).join('\n'));
+  final editor = YamlEditor(content.split('\n').where((line) => !line.startsWith(networkPrefix) && !line.startsWith(accessRulesPrefix)).join('\n'));
   final parsed = loadYaml(content);
   if (parsed is! Map) throw const FormatException('Configuration must be a YAML mapping');
+  final policies = opts['accessPolicies'] as Map? ?? {};
+  final nodes = {for (final node in parsed['proxies'] as List? ?? []) if (node is Map) node['name']};
+  for (final target in policies.values) {
+    if (!nodes.contains(target)) throw const FormatException('Access-control node no longer exists; choose another node or Default');
+  }
+  final managedRules = <String>[
+    if (active)
+      for (final source in opts['access'] as List<String>)
+        if (policies.containsKey(source))
+          for (final cidr in accessCidrs(source)) 'SRC-IP-CIDR,$cidr,${policies[source]}',
+  ];
+  final userRules = accessUserRules(content);
+  final oldManaged = content.split('\n').any((line) => line.startsWith(accessRulesPrefix));
+  if (managedRules.isNotEmpty || oldManaged) editor.update(['rules'], wrapAsYamlNode([...managedRules, ...userRules], collectionStyle: CollectionStyle.BLOCK, scalarStyle: ScalarStyle.SINGLE_QUOTED));
+  if (managedRules.isNotEmpty) editor.update(['mode'], 'rule');
   final tun = <String, dynamic>{'enable': mode == 'tun'};
   if (mode == 'tun') {
     tun.addAll({'device': 'Mclash', 'stack': opts['stack'], 'auto-route': false, 'auto-redirect': false,
@@ -135,7 +165,9 @@ String applyNetwork(String content, Map args) {
       }
     }
   }
-  return canonicalControllerMarker('$networkPrefix${jsonEncode(opts)}\n$editor');
+  final metadata = jsonEncode(opts);
+  if (metadata.length > 32768 || utf8.encode(metadata).length > 32768) throw const FormatException('Capture settings are too large');
+  return canonicalControllerMarker('$networkPrefix$metadata\n${managedRules.isEmpty ? '' : '$accessRulesPrefix${jsonEncode(managedRules)}\n'}$editor');
 }
 
 String applyController(String content, Map args) {

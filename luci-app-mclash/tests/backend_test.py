@@ -40,6 +40,7 @@ exit 1
         (self.base / 'lock-helper').write_text(lock_source)
         source = (ROOT/'root/usr/libexec/mclash-ui').read_text()
         for original, replacement in {
+            '/var/run/mclash': str(self.base/'runtime'), '/var/lock/mclash-config.lock': str(self.base/'config.lock'), '/etc/mclash/domains.request.json': str(self.base/'domains.request.json'),
             '/usr/libexec/mclash-lock': str(self.base/'lock-helper'), '/usr/bin/mihomo': str(core),
             '/usr/libexec/mclash-timeout': str(ROOT / 'root/usr/libexec/mclash-timeout'),
             '/etc/init.d/mclash': str(init),
@@ -97,6 +98,68 @@ printf 'proxies: []\\n' > "$output"
         self.assertEqual(self.config.read_text(), 'valid new config\n')
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
         self.assertFalse(self.calls.exists())
+
+    def test_running_save_keeps_runtime_snapshot_and_does_not_restart(self):
+        self.script.write_text(self.script.read_text().replace('ACTION="$1"',
+            'service_active() { return 0; }\nrunning() { return 0; }\nACTION="$1"'))
+        self.upload.write_text('valid pending config\n')
+        result = self.run_command('save')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        runtime = self.base / 'runtime/runtime.yaml'
+        self.assertEqual(runtime.read_text(), 'valid old config\n')
+        self.assertEqual(self.config.read_text(), 'valid pending config\n')
+        self.assertEqual(self.run_command('read-runtime').stdout, 'valid old config\n')
+        self.upload.write_text('valid second pending config\n')
+        self.assertEqual(self.run_command('save').returncode, 0)
+        self.assertEqual(runtime.read_text(), 'valid old config\n')
+        self.assertFalse(self.calls.exists())
+        self.assertFalse((self.base / 'config.lock').exists())
+
+    def test_starting_marker_and_snapshot_lock_block_saves(self):
+        state = self.base / 'runtime'
+        state.mkdir()
+        (state / 'starting').write_text(str(int(time.time())))
+        self.upload.write_text('valid pending\n')
+        result = self.run_command('save')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_text(), 'valid old config\n')
+        self.assertFalse((self.base / 'config.lock').exists())
+
+    def test_snapshot_creation_lock_prevents_concurrent_save(self):
+        guard = self.base / 'config.lock'
+        guard.mkdir()
+        stamp = Path(f'/proc/{os.getpid()}/stat').read_text().split()[21]
+        (guard / 'owner').write_text(f'{os.getpid()} {stamp} config-start\n')
+        self.upload.write_text('valid pending\n')
+        result = self.run_command('save')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Configuration operation is in progress', result.stderr)
+        self.assertEqual(self.config.read_text(), 'valid old config\n')
+        self.assertTrue(guard.exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_domain_resolution_uses_running_controller_and_marks_active_sessions(self):
+        resolver = self.base / 'resolver'
+        resolver.write_text('''#!/bin/sh
+printf '%s|%s' "$MCLASH_DNS_ACTIVE" "$MCLASH_DNS_HOST"
+''')
+        resolver.chmod(0o755)
+        ip = self.base / 'ip'
+        ip.write_text('#!/bin/sh\nprintf "1: lo inet 127.0.0.1/8 scope host lo\\n"\n')
+        ip.chmod(0o755)
+        source = self.script.read_text().replace('/usr/libexec/mclash-resolve', str(resolver)).replace('/sbin/ip', str(ip))
+        self.script.write_text(source.replace('ACTION="$1"', 'service_active() { return 1; }\nACTION="$1"'))
+        self.assertEqual(self.run_command('resolve-domains').stdout, '0|')
+        runtime = self.base / 'runtime'
+        runtime.mkdir()
+        (runtime / 'runtime.yaml').write_text('external-controller: 127.0.0.1:9097\n')
+        self.config.write_text('external-controller: 192.0.2.1:9999\n')
+        self.script.write_text(source.replace('ACTION="$1"', 'service_active() { return 0; }\nACTION="$1"'))
+        result = self.run_command('resolve-domains')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '1|127.0.0.1')
+        (runtime / 'runtime.yaml').write_text('external-controller: 192.0.2.2:9097\n')
+        self.assertEqual(self.run_command('resolve-domains').stdout, '1|', 'nonlocal controllers cannot trigger public HTTP requests')
 
     def test_restart_with_invalid_config_does_not_stop_service(self):
         self.config.write_text('bad\n')

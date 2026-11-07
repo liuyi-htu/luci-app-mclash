@@ -2,6 +2,7 @@
 'use strict';
 'require view';
 'require fs';
+'require rpc';
 'require ui';
 'require mclash.overrides as overrides';
 'require mclash.management as management';
@@ -25,13 +26,15 @@ return view.extend({
 	handleSaveApply: null,
 	handleReset: null,
 	load: function() {
-		return Promise.all([command('status'), command('read-config'), command('devices').catch(function() { return '{"devices":[]}'; })]);
+		return Promise.all([command('status'), command('read-config'), command('devices').catch(function() { return '{"devices":[]}'; }), rpc.declare({object:'luci-rpc',method:'getHostHints',expect:{'':{}}})().catch(function() { return {}; }), command('read-runtime')]);
 	},
 	render: function(data) {
+		var runtimeContent = data[4] || data[1], runtimeNetwork;
 		var state, busy = false, stopArmed = false, buttons = [], apiQueue = Promise.resolve();
 		var networkOptions, networkTiles = [];
 		try { networkOptions = overrides.call('summary', data[1]).network; } catch (_) {}
 		networkOptions = networkOptions || {mode: 'none', interfaces: ['br-lan'], lan: true, access: [], router: true, ipv6: false, stack: 'mixed'};
+		runtimeNetwork = overrides.call('summary', runtimeContent).network || networkOptions;
 		var running = E('strong'), version = E('strong');
 		var editor = {value: data[1]};
 		function previewText(text) {
@@ -44,9 +47,9 @@ return view.extend({
 					if (typeof names === 'string') return namePrefix + JSON.stringify('1-' + names);
 				} catch (_) {}
 				return line;
-			}).filter(function(line) { return !/^# Mclash (?:chain-settings:|node-chain(?:s?:|\s)|OpenWrt (?:subscription-(?:prefixes|usage):|controller:))/.test(line); }).join('\n');
+			}).filter(function(line) { return !/^# Mclash (?:chain-settings:|node-chain(?:s?:|\s)|OpenWrt (?:subscription-(?:prefixes|usage|cache|resolve-domains):|controller:|access-rules:))/.test(line); }).join('\n');
 		}
-		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [previewText(data[1])]);
+		var preview = E('pre', {'class': 'mclash-log mclash-config-preview', 'tabindex': '0'}, [previewText(runtimeContent)]);
 		var logs = E('pre', {'class': 'mclash-log'}, [_('Click Refresh logs to read the logs.', 'mclash')]);
 		var logKind = E('select', {'class': 'cbi-input-select', 'change': function() { return refreshLogs(); }}, [E('option', {value: 'service'}, ['mclash.log']), E('option', {value: 'core'}, ['mihomo.log']), E('option', {value: 'update'}, ['update.log'])]);
 		logKind.value = 'service';
@@ -57,20 +60,33 @@ return view.extend({
 			running.className = state.running ? 'mclash-ok' : 'mclash-bad';
 			if (proxyView) proxyView.refresh();
 			networkTiles.forEach(function(update) { update(); });
-			buttons.forEach(function(n) { n.disabled = busy || (n.mclashConfig && state.running); });
-			if (manager && manager.setRunning) manager.setRunning(state.running);
+			buttons.forEach(function(n) { n.disabled = busy || (n.mclashConfig && state.transition); });
+			if (manager && manager.setRunning) manager.setRunning(state.transition);
 			var coreVersion = /(?:^|\s)v?(\d+\.\d+\.\d+(?:[-+][^\s]+)?)/.exec(state.version || '');
 			version.textContent = coreVersion ? 'v' + coreVersion[1] : (state.installed ? _('Unknown version', 'mclash') : _('Not installed', 'mclash'));
 			serviceButton.className = 'mclash-status-card';
 			serviceButton.setAttribute('title',state.running ? (stopArmed ? _('Click again to stop the service', 'mclash') : _('Click again to confirm stopping', 'mclash')) : _('Click to start the service', 'mclash'));
 		}
-		function refresh() { return command('status').then(showStatus); }
+		function refresh() {
+			return command('status').then(function(raw) {
+				var next = JSON.parse(raw);
+				if (state && (state.running !== next.running || state.session !== next.session)) {
+					return command('read-runtime').then(function(text) {
+						runtimeContent = text;
+						runtimeNetwork = overrides.call('summary', text).network || networkOptions;
+						preview.textContent = previewText(text);
+						showStatus(raw);
+					});
+				}
+				showStatus(raw);
+			});
+		}
 		function button(label, operation, style) {
 			var b = E('button', {'type': 'button', 'class': 'btn mclash-button ' + (style || 'cbi-button-action'), 'click': function() {
 				if (busy) return Promise.resolve();
 				busy = true;
 				buttons.forEach(function(n) { n.disabled = true; });
-				return Promise.resolve().then(function() { return b.mclashConfig ? requireStopped().then(operation) : operation(); }).then(function(message) {
+				return Promise.resolve().then(function() { return b.mclashConfig ? requireEditable().then(operation) : operation(); }).then(function(message) {
 					if (message) notice.show(message, 'success');
 					return refresh();
 				}).catch(function(err) {
@@ -78,7 +94,7 @@ return view.extend({
 					return refresh().catch(function() {});
 				}).finally(function() {
 					busy = false;
-					buttons.forEach(function(n) { n.disabled = !!(n.mclashConfig && state.running); });
+					buttons.forEach(function(n) { n.disabled = !!(n.mclashConfig && state.transition); });
 				});
 			}}, [label]);
 			buttons.push(b);
@@ -94,6 +110,10 @@ return view.extend({
 			return command('read-config').then(function(text) {
 				editor.value = text;
 				networkOptions = overrides.call('summary', text).network || networkOptions;
+				return command('read-runtime');
+			}).then(function(text) {
+				runtimeContent = text;
+				runtimeNetwork = overrides.call('summary', text).network || networkOptions;
 				preview.textContent = previewText(text);
 			});
 		}
@@ -106,13 +126,13 @@ return view.extend({
 		function pane(name, title, children) {
 			return E('div', {'class': 'cbi-section', 'data-tab': name, 'data-tab-title': title}, children);
 		}
-		function requireStopped() {
+		function requireEditable() {
 			return refresh().then(function() {
-				if (state.running) throw new Error(_('Stop the proxy before changing the configuration.', 'mclash'));
+				if (state.transition) throw new Error(_('Service is starting or exiting; wait before saving', 'mclash'));
 			});
 		}
 		function persist(text, nextNetwork) {
-			return requireStopped().then(function() {
+			return requireEditable().then(function() {
 				if (nextNetwork || networkOptions.mode !== 'none' || text.indexOf('# Mclash OpenWrt capture: ') >= 0) {
 					text = overrides.call('network', text, nextNetwork || networkOptions);
 				}
@@ -128,7 +148,7 @@ return view.extend({
 		}
 		function api(op, params) {
 			var pending = apiQueue.catch(function() {}).then(function() {
-				return command('read-config');
+				return command('read-runtime');
 			}).then(function(content) {
 				var meta = overrides.call('summary', content);
 				var match = /^(?:127\.0\.0\.1|localhost|0\.0\.0\.0|\[::\]):([0-9]+)$/.exec(meta.controller);
@@ -145,18 +165,50 @@ return view.extend({
 		function subscriptionDialog() {
 			var urlPrefix = '# Mclash OpenWrt subscription-urls: ', namePrefix = '# Mclash OpenWrt subscription-names: ';
 			var tagPrefix = '# Mclash OpenWrt subscription-prefixes: ', usagePrefix = '# Mclash OpenWrt subscription-usage: ';
+			var resolvePrefix = '# Mclash OpenWrt subscription-resolve-domains: ', cachePrefix = '# Mclash OpenWrt subscription-cache: ';
+			var resolutions = metadata(resolvePrefix, []);
 			var links = metadata(urlPrefix, []), names = metadata(namePrefix, ''), tags = metadata(tagPrefix, []), usage = metadata(usagePrefix, []);
 			if (!Array.isArray(links)) links = [];
 			var entries = links.map(function(url, index) { return {
 				name: Array.isArray(names) ? names[index] || _('Subscription ', 'mclash') + (index + 1) : (names ? names + (index ? ' ' + (index + 1) : '') : _('Subscription ', 'mclash') + (index + 1)),
-				url: url, prefix: tags.length === links.length ? tags[index] : (links.length === 1 ? '' : (index + 1) + '-'), usage: usage[index] || null
+				url: url, resolveDomains: resolutions[index] === true, prefix: tags.length === links.length ? tags[index] : (links.length === 1 ? '' : (index + 1) + '-'), usage: usage[index] || null
 			}; });
 			var pulling = false, cancelled = false;
-			function retainedSources() { return overrides.call('subscriptionSources', editor.value, {count: entries.length, prefixes: entries.map(function(e) { return e.prefix; })}); }
-			function saveAirports(next, sources, allowEmpty) {
-				var content = sources ? overrides.call('subscription', editor.value, {template: template.text, sources: sources, prefixes: next.map(function(e) { return e.prefix; }), refresh: overrides.call('summary', editor.value).groups.length > 0, allowEmpty: allowEmpty === true || !next.length}) : editor.value;
-				content = content.split('\n').filter(function(line) { return ![urlPrefix, namePrefix, tagPrefix, usagePrefix].some(function(prefix) { return line.indexOf(prefix) === 0; }); }).join('\n');
-				return persist(namePrefix + JSON.stringify(next.map(function(e) { return e.name; })) + '\n' + urlPrefix + JSON.stringify(next.map(function(e) { return e.url; })) + '\n' + tagPrefix + JSON.stringify(next.map(function(e) { return e.prefix; })) + '\n' + usagePrefix + JSON.stringify(next.map(function(e) { return e.usage; })) + '\n' + content).then(function() { subscriptionDialog(); });
+			function retainedSources() {
+				var cached = metadata(cachePrefix, []);
+				return Array.isArray(cached) && cached.length === entries.length ? cached.slice() : overrides.call('subscriptionSources', editor.value, {count: entries.length, prefixes: entries.map(function(e) { return e.prefix; })});
+			}
+			function resolveSource(source) {
+				var domains = overrides.call('nodeDomains', source);
+				if (!domains.length) return Promise.resolve(source);
+				var context;
+				return command('read-runtime').then(function(content) {
+					context = overrides.call('summary', content);
+					var match = /:([0-9]+)$/.exec(context.controller), request = {domains:domains};
+					if (match) request.controller = {port:Number(match[1]),secret:String(context.secret || '')};
+					return fs.write('/etc/mclash/domains.request.json', JSON.stringify(request), 384);
+				}).then(function() { return command('resolve-domains'); }).then(function(raw) {
+					return overrides.call('resolveNodes', source, {addresses:JSON.parse(raw),fakeIpRanges:context.fakeIpRanges || []});
+				});
+			}
+			function saveAirports(next, sources, allowEmpty, refreshPrefixes) {
+				var originals = (sources || retainedSources()).map(function(source) { return overrides.call('nodeSource', source); });
+				var currentSources = sources ? overrides.call('subscriptionSources', editor.value, {count:entries.length,prefixes:entries.map(function(e) { return e.prefix; })}) : [];
+				var working = [], chain = Promise.resolve();
+				if (sources) originals.forEach(function(source, index) {
+					chain = chain.then(function() {
+						if (!next[index].resolveDomains) return source;
+						var previous = entries.findIndex(function(e) { return e.prefix === next[index].prefix && e.url === next[index].url && e.resolveDomains; });
+						if (previous >= 0 && (refreshPrefixes || []).indexOf(next[index].prefix) < 0) return currentSources[previous];
+						return resolveSource(source);
+					}).then(function(converted) { working.push(converted); });
+				});
+				return chain.then(function() {
+					var content = sources ? overrides.call('subscription', editor.value, {template: template.text, sources: working, prefixes: next.map(function(e) { return e.prefix; }), refresh: overrides.call('summary', editor.value).groups.length > 0, allowEmpty: allowEmpty === true || !next.length}) : editor.value;
+					content = content.split('\n').filter(function(line) { return ![urlPrefix, namePrefix, tagPrefix, usagePrefix, resolvePrefix, cachePrefix].some(function(prefix) { return line.indexOf(prefix) === 0; }); }).join('\n');
+					var cache = next.some(function(e) { return e.resolveDomains; }) ? cachePrefix + JSON.stringify(originals) + '\n' : '';
+					return persist(cache + resolvePrefix + JSON.stringify(next.map(function(e) { return e.resolveDomains === true; })) + '\n' + namePrefix + JSON.stringify(next.map(function(e) { return e.name; })) + '\n' + urlPrefix + JSON.stringify(next.map(function(e) { return e.url; })) + '\n' + tagPrefix + JSON.stringify(next.map(function(e) { return e.prefix; })) + '\n' + usagePrefix + JSON.stringify(next.map(function(e) { return e.usage; })) + '\n' + content);
+				}).then(function() { subscriptionDialog(); });
 			}
 			function readUsage(content) {
 				var line = content.split('\n').find(function(line) { return line.indexOf('# Mclash subscription-usage: ') === 0; });
@@ -177,19 +229,20 @@ return view.extend({
 			function updateAirport(index) {
 				if (pulling) return Promise.resolve();
 				pulling = true; cancelled = false;
-				return requireStopped().then(function() {
+				return requireEditable().then(function() {
 					var next = entries.map(function(e) { return Object.assign({}, e); }), sources = retainedSources();
-					return fetchAirport(next[index]).then(function(content) { sources[index] = content; if (cancelled) throw new Error(_('Subscription fetch cancelled', 'mclash')); return saveAirports(next, sources); });
+					return fetchAirport(next[index]).then(function(content) { sources[index] = content; if (cancelled) throw new Error(_('Subscription fetch cancelled', 'mclash')); return saveAirports(next, sources, false, [next[index].prefix]); });
 				}).finally(function() { pulling = false; });
 			}
 			function editAirport(index) {
-				var entry = index == null ? {name: _('Subscription ', 'mclash') + (entries.length + 1), url: '', usage: null} : entries[index];
+				var entry = index == null ? {name: _('Subscription ', 'mclash') + (entries.length + 1), url: '', usage: null, resolveDomains: false} : entries[index];
 				var name = E('input', {'class': 'cbi-input-text', 'aria-label': _('Subscription name', 'mclash'), 'value': entry.name});
 				var url = E('input', {'class': 'cbi-input-text', 'aria-label': _('Subscription URL', 'mclash'), 'value': entry.url, 'placeholder': 'https://…'});
-				ui.showModal(_('Edit subscription', 'mclash'), [E('div', {'class': 'mclash-modal-field'}, [E('label', {}, [_('Subscription name', 'mclash')]), name, E('label', {}, [_('Subscription URL', 'mclash')]), url]),
+				var resolve = E('input', {'type':'checkbox','aria-label':_('Resolve node domains to IP', 'mclash')}); resolve.checked = entry.resolveDomains === true;
+				ui.showModal(_('Edit subscription', 'mclash'), [E('div', {'class': 'mclash-modal-field'}, [E('label', {}, [resolve, ' ', _('Resolve node domains to IP', 'mclash')]), E('label', {}, [_('Subscription name', 'mclash')]), name, E('label', {}, [_('Subscription URL', 'mclash')]), url]),
 						E('div', {'class': 'right'}, [E('button', {'class': 'btn mclash-button', 'click': subscriptionDialog}, [_('Cancel', 'mclash')]), ' ', button(_('Save', 'mclash'), function() {
 						if (pulling) return Promise.resolve();
-						var updated = Object.assign({}, entry, {name: name.value.trim(), url: url.value.trim()}), next = entries.slice();
+						var updated = Object.assign({}, entry, {name: name.value.trim(), url: url.value.trim(), resolveDomains: resolve.checked}), next = entries.slice();
 						if (!updated.name || !updated.url) throw new Error(_('Enter a subscription name and URL', 'mclash'));
 						var parsed = new URL(updated.url); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(_('Subscription URLs must use HTTP or HTTPS', 'mclash'));
 						if (entries.some(function(e, i) { return i !== index && (e.name === updated.name || e.url === updated.url); })) throw new Error(_('Subscription names and URLs must be unique', 'mclash'));
@@ -197,9 +250,9 @@ return view.extend({
 							var max = entries.reduce(function(value, e) { return Math.max(value, parseInt(e.prefix, 10) || 1); }, 0);
 							updated.prefix = entries.length ? (max + 1) + '-' : ''; next.push(updated);
 						} else next[index] = updated;
-						if (index != null && entry.url === updated.url) return saveAirports(next);
+						if (index != null && entry.url === updated.url && entry.resolveDomains === updated.resolveDomains) return saveAirports(next);
 						pulling = true; cancelled = false;
-						return requireStopped().then(function() { var sources = retainedSources(); return fetchAirport(updated).then(function(content) {
+						return requireEditable().then(function() { var sources = retainedSources(); return fetchAirport(updated).then(function(content) {
 							sources[index == null ? entries.length : index] = content;
 							if (cancelled) throw new Error(_('Subscription fetch cancelled', 'mclash')); return saveAirports(next, sources);
 						}); }).finally(function() { pulling = false; });
@@ -232,8 +285,8 @@ return view.extend({
 				button(_('Add subscription', 'mclash'), function() { editAirport(null); }),
 				E('button', {'class': 'btn mclash-button', 'click': ui.hideModal}, [_('Close', 'mclash')])])]);
 		}
-		var manager = management.render(function() { return editor.value; }, persist, function() { return refreshPreview().then(refresh).then(function() { return state.running; }); });
-		var proxyView = proxy.render(function() { return overrides.call('summary', editor.value); }, function() { return state.running; });
+		var manager = management.render(function() { return editor.value; }, persist, function() { return refreshPreview().then(refresh).then(function() { return state.transition; }); });
+		var proxyView = proxy.render(function() { return overrides.call('summary', runtimeContent); }, function() { return state.running; });
 		function statusCard(title, icon, color, value, activate) {
 			return E('button',{'type':'button','class':'mclash-status-card','aria-label':title,'click':activate},[
 				E('span',{'class':'mclash-status-icon','style':'background:'+color,'aria-hidden':'true'},[icon]),
@@ -305,7 +358,7 @@ return view.extend({
 			])]);
 		}
 		function captureActive(field) {
-			return networkOptions.mode !== 'none' && state && state.running && (field !== 'stack' || networkOptions.mode === 'tun') && (field !== 'interfaces' || networkOptions.lan !== false || (networkOptions.access || []).length > 0);
+			return JSON.stringify(networkOptions) === JSON.stringify(runtimeNetwork) && networkOptions.mode !== 'none' && state && state.running && (field !== 'stack' || networkOptions.mode === 'tun') && (field !== 'interfaces' || networkOptions.lan !== false || (networkOptions.access || []).length > 0);
 		}
 		function configuredValue(value, field) {
 			return captureActive(field) ? value : value + _(' · Configured', 'mclash');
@@ -327,16 +380,53 @@ return view.extend({
 					box.checked = item[0] === 'lan' ? networkOptions.lan !== false : !!networkOptions[item[0]];
 					return {field:item[0],label:item[1],box:box};
 				});
-				var input = E('textarea',{'class':'cbi-input-textarea mclash-lines',rows:6,wrap:'off',spellcheck:'false','aria-label':_('Proxy IPs / ranges (one per line)', 'mclash'),placeholder:'192.168.10.100\n192.168.10.0/24\n192.168.10.100-192.168.10.150\nfd00::/64'},[(networkOptions.access || []).join('\n')]);
+				var rows = [], list = E('div', {'class':'mclash-access-list'}), choices = {};
+				Object.keys(data[3] || {}).forEach(function(mac) {
+					var host = data[3][mac];
+					[].concat(host.ipaddrs || host.ipv4 || [], host.ip6addrs || host.ipv6 || []).forEach(function(ip) {
+						choices[ip] = host.name ? ip + ' (' + host.name + ')' : ip;
+					});
+				});
+				(networkOptions.access || []).forEach(function(ip) { if (!choices[ip]) choices[ip] = ip; });
+				var summary = overrides.call('summary', editor.value), nodeNames = summary.nodes || [];
+				function addRow(source, target) {
+					var combo = new ui.Combobox(source || '', choices, {sort:true,dropdown_items:8,custom_placeholder:_('IP / CIDR / IPv4 range', 'mclash'),select_placeholder:_('Select a device or enter a range', 'mclash')});
+					var address = combo.render(); address.setAttribute('aria-label', _('Source IP / range', 'mclash'));
+					var mode = optionSelect([['default',_('Default', 'mclash')],['node',_('Global via node', 'mclash')]], target ? 'node' : 'default');
+					mode.setAttribute('aria-label', _('Routing policy', 'mclash'));
+					var values = [['',_('Select a node', 'mclash')]].concat(nodeNames.map(function(name) { return [name,name]; }));
+					if (target && nodeNames.indexOf(target) < 0) values.push([target,target + ' (' + _('Unavailable', 'mclash') + ')']);
+					var node = optionSelect(values, target || ''); node.setAttribute('aria-label', _('Proxy node', 'mclash')); node.style.maxWidth = '100%'; node.style.display = mode.value === 'node' ? '' : 'none';
+					mode.addEventListener('change', function() { node.style.display = mode.value === 'node' ? '' : 'none'; });
+					var row = {combo:combo, mode:mode, node:node};
+					var remove = E('button', {'type':'button','class':'btn mclash-button cbi-button-negative','click':function() { rows.splice(rows.indexOf(row),1); list.removeChild(row.element); }}, [_('Delete', 'mclash')]);
+					row.element = E('div', {'class':'mclash-access-row','style':'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px'}, [E('div',{'style':'flex:1;min-width:180px'},[address]),mode,node,remove]);
+					rows.push(row); list.appendChild(row.element);
+				}
+				(networkOptions.access || []).forEach(function(ip) { addRow(ip,(networkOptions.accessPolicies || {})[ip]); });
+				var add = E('button',{'type':'button','class':'btn mclash-button','click':function() { addRow('',''); }},[_('Add IP / range', 'mclash')]);
 				editSetting(label,E('div',{},[
 					E('div',{'class':'mclash-device-options'},options.map(function(item) { return E('label',{},[item.box,' ',item.label]); })),
 					E('h3',{'class':'mclash-category-title','style':'margin-top:18px'},[_('Access control', 'mclash')]),
 					E('p',{},[_('When Proxy LAN devices is disabled, only the listed IPs / ranges are captured. Other devices connect directly. When enabled, all devices on the selected LAN interfaces are captured.', 'mclash')]),
-					E('div',{'class':'mclash-modal-field'},[E('label',{'class':'mclash-modal-label'},[_('Proxy IPs / ranges (one per line)', 'mclash')]),input])
+					E('p',{},[_('Default follows existing rules. Global via node sends all captured traffic from the source through the selected node. Specific-node entries take priority over default routing.', 'mclash')]),
+					list, add
 				]),function() {
 					var next = Object.assign({},networkOptions);
 					options.forEach(function(item) { next[item.field] = item.box.checked; });
-					next.access = input.value.split(/\r?\n/).map(function(line) { return line.trim(); }).filter(Boolean);
+					next.access = []; var policies = Object.create(null);
+					rows.forEach(function(row) {
+						var source = String(row.combo.getValue() || '').trim().toLowerCase();
+						if (!source) throw new Error(_('Select a source IP or enter a range', 'mclash'));
+						if (next.access.indexOf(source) >= 0) throw new Error(_('Duplicate access-control source', 'mclash'));
+						next.access.push(source);
+						if (row.mode.value === 'node') {
+							if (!row.node.value) throw new Error(_('Select a node', 'mclash'));
+							policies[source] = row.node.value;
+						}
+					});
+					delete next.accessPolicies;
+					if (Object.keys(policies).length) next.accessPolicies = policies;
 					return persist(editor.value,next);
 				});
 			},display());
@@ -422,6 +512,7 @@ return view.extend({
 		showStatus(data[0]);
 		ui.tabs.initTabGroup([settingsPane, rulesPane, configPane, logsPane, updatePane]);
 		return E('div', {}, [
+			E('style', {}, '.mclash-access-list{overflow:visible}.mclash-access-row .cbi-dropdown{width:100%;max-width:100%}.mclash-access-row .cbi-dropdown[open]>ul.dropdown{top:auto!important;bottom:calc(100% + 4px)!important;left:0!important;right:auto!important;height:min(16rem,40vh);min-height:min(12rem,30vh);max-height:min(16rem,40vh)!important;overflow-y:auto;z-index:1000}'),
 			E('style', {}, '.mclash-status-grid>.mclash-status-card{height:98px}@media(max-width:500px){.mclash-status-grid>.mclash-status-card{height:86px}}'),
 			E('style', {}, ".mclash-status-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 24px}.mclash-status-card{display:flex;align-items:center;gap:18px;min-height:82px;padding:16px;border:1px solid var(--border-color-low,#f0f0f0);border-radius:6px;background:var(--background-color-high,#fff);box-shadow:0 2px 14px rgba(0,0,0,.045);text-align:left;text-decoration:none;color:inherit;font:inherit;box-sizing:border-box;cursor:pointer;min-width:0}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:34px}.mclash-probe-source{position:absolute;grid-column:-2/-1;grid-row:1/2;z-index:1;top:6px;right:6px;display:inline-flex;align-items:center;min-height:22px;padding:2px 7px;border:1px solid var(--border-color-low,#e5e7eb);border-radius:4px;background:var(--background-color-high,#fff);color:var(--text-color-medium,#667085);font:inherit;font-size:11px;line-height:16px;cursor:pointer;box-shadow:none}.mclash-probe-source:disabled{opacity:.55;cursor:wait}.mclash-probe-source:focus-visible{outline:2px solid var(--primary-color-high,#0069d6)}.mclash-status-card:hover{box-shadow:0 3px 16px rgba(0,0,0,.08);text-decoration:none}.mclash-status-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 46px;border-radius:50%;color:#fff;font-size:23px;font-weight:600}.mclash-panel-icon{display:block;width:32px;height:auto}.mclash-brand-icon{display:block;width:26px;height:26px}.mclash-probe-line{display:flex;gap:5px;align-items:baseline}.mclash-result-icon{flex:0 0 13px;text-align:center;opacity:.75}.mclash-status-body{display:flex;flex-direction:column;gap:7px;min-width:0}.mclash-status-title{font-size:13px;color:var(--text-color-medium,#8b98a8);font-weight:600}.mclash-status-value{font-size:13px;color:#df705b;white-space:pre-line;overflow-wrap:anywhere;line-height:1.4}.mclash-status-value.mclash-ok{color:#2e9f79}.mclash-status-value.mclash-bad{color:#d32f2f}.mclash-panel-card[aria-disabled=true]{opacity:.5;cursor:default}.mclash-status-card:focus-visible{outline:2px solid var(--primary-color-high,#0069d6);outline-offset:2px}.mclash-status-card:disabled{cursor:wait}@media(max-width:900px){.mclash-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mclash-probe-source{grid-column:2/3;grid-row:1/2;top:6px;right:6px}.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:16px}.mclash-status-grid>.mclash-status-card:nth-child(2){padding-top:34px}}@media(max-width:500px){.mclash-status-grid>.mclash-status-card:nth-child(4){padding-top:10px}.mclash-status-grid{gap:8px;margin:12px 0 18px}.mclash-status-card{gap:10px;padding:10px;min-height:76px}.mclash-status-icon{width:32px;height:32px;flex-basis:32px;font-size:17px}.mclash-panel-icon{width:24px}.mclash-status-title,.mclash-status-value{font-size:12px}}" + "\n.mclash-status-scroll{margin:10px 0 18px;overflow:hidden}\n.mclash-status-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 0}\n.mclash-status-info,.mclash-status-actions{display:flex;align-items:center;gap:16px}\n.mclash-status-actions{margin-left:auto;gap:8px}\n.mclash-status-actions>.btn{white-space:nowrap;margin:0}\n.mclash-panel-button[aria-disabled=true]{opacity:.5;cursor:default}\n.mclash-panel-button[aria-disabled=false]{color:var(--primary-color-high,#0069d6)}\n.mclash-ok{color:#2e7d32}.mclash-bad{color:#d32f2f}\n.mclash-settings-nav{margin-bottom:18px}\n.mclash-settings-nav>li>.mclash-subtab{background:none;border:0;box-shadow:none;color:inherit;line-height:25px;padding:4px 6px;height:auto;min-height:0;border-radius:4px 4px 0 0;font-size:13px;font-weight:400;text-shadow:none}\n.mclash-settings-layout{padding:0;border:0;background:none}\n.mclash-settings-card{display:none;border:0;background:none;padding:0;margin:0 0 18px}\n.mclash-settings-layout[data-settings-active=basic] [data-settings-group=capture],.mclash-settings-layout[data-settings-active=basic] [data-settings-group=control],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=nodes],.mclash-settings-layout[data-settings-active=rules] [data-settings-group=rules]{display:block}\n.mclash-category-title{font-size:14px;margin:0 0 14px;padding:0;font-weight:600}\n.mclash-rule-tile.btn{display:flex;align-items:center;gap:20px;width:auto;max-width:100%;min-height:30px;padding:0;margin:0 0 12px;border:0;border-radius:0;background:none;color:var(--text-color-high,#404040);box-shadow:none;text-shadow:none;text-align:left;font-size:13px;font-weight:400}\n.mclash-rule-tile.btn:hover{background:none;box-shadow:none}\n.mclash-rule-icon{display:none}\n.mclash-rule-label{display:grid;grid-template-columns:180px minmax(120px,220px);align-items:center;gap:20px;text-align:right;font-size:13px;font-weight:400}\n.mclash-rule-value{display:block;text-align:left;font-size:13px;font-weight:400;color:var(--text-color-medium,#777);margin:0;overflow-wrap:anywhere}\n.mclash-rule-arrow{white-space:nowrap;margin:0;font-weight:400;font-size:12px;min-width:46px;text-align:center}\n.mclash-rule-arrow::before{content:attr(data-prefix);font-size:12px}\n.mclash-rule-tile:disabled{opacity:.5;cursor:default}\n.mclash-note{margin:0 0 12px;padding:8px 12px;border-left:3px solid var(--primary-color-high,#0069d6);background:rgba(0,105,214,.05)}\n.mclash-log{max-height:55vh;min-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-all;padding:12px;background:var(--background-color-low,rgba(0,0,0,.025));border:1px solid var(--border-color-medium,#ddd);font-size:12px}\n.mclash-config-preview{white-space:pre!important;word-break:normal;overflow-wrap:normal;scrollbar-width:none;-ms-overflow-style:none}\n.mclash-config-preview::-webkit-scrollbar{display:none;width:0;height:0}\n.mclash-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}\n.mclash-update-versions{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-versions>span{white-space:nowrap}\n.mclash-update-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}\n.mclash-update-progress{width:min(34em,100%);height:12px;overflow:hidden;border:1px solid var(--border-color-medium,#ddd);border-radius:3px;background:var(--background-color-low,#eee)}\n.mclash-update-progress-fill{height:100%;background:var(--primary-color-high,#0069d6);transition:width .3s ease}\n.mclash-lines{width:100%;box-sizing:border-box;white-space:pre!important;overflow-x:auto;overflow-wrap:normal!important;word-break:normal!important}\n.mclash-modal-scroll{scrollbar-width:none;-ms-overflow-style:none}\n.mclash-modal-scroll::-webkit-scrollbar{display:none}\n.mclash-subscription-row.mclash-actions{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:4px}\n.mclash-subscription-row::-webkit-scrollbar{display:none}\n.mclash-subscription-row>*{flex-shrink:0}\n.mclash-subscription-name{min-width:8em}\n.mclash-subscription-usage{margin-right:auto;color:var(--text-color-medium,#777)}\n.mclash-modal-field{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}\n.mclash-modal-label{display:block;float:none;width:auto;margin:0;padding:0}\n.mclash-modal-control{display:block;width:100%;margin:0}\n.mclash-modal-control>input:not([type=checkbox]),.mclash-modal-control>select,.mclash-dialog-control>input:not([type=checkbox]),.mclash-dialog-control>select{width:100%;box-sizing:border-box}\n.mclash-dialog-control{padding:12px 0}\n.mclash-device-options{display:grid;gap:8px;max-height:50vh;overflow:auto}\n.mclash-device-options label{display:flex;align-items:center;gap:8px}\n@media(max-width:700px){.mclash-status-actions{width:100%;margin:0;overflow-x:auto;scrollbar-width:none}.mclash-status-actions::-webkit-scrollbar{display:none}.mclash-status-actions>.btn{flex-shrink:0}.mclash-status-info{font-size:12px;gap:12px}.mclash-rule-tile.btn{width:100%;gap:10px;margin-bottom:14px}.mclash-rule-label{grid-template-columns:minmax(0,1fr);gap:4px;text-align:left;flex:1;min-width:0}.mclash-rule-value{font-size:12px}.mclash-settings-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.mclash-settings-nav::-webkit-scrollbar{display:none}.mclash-settings-nav>li{flex-shrink:0}.mclash-update-versions{gap:18px}}\n"), map
 		]);

@@ -41,6 +41,14 @@
         ],
         "/usr/libexec/mclash-ui probe-github": [
           "exec"
+        ],
+        "/usr/libexec/mclash-ui read-runtime": [
+          "exec"
+        ]
+      },
+      "ubus": {
+        "luci-rpc": [
+          "getHostHints"
         ]
       }
     },
@@ -104,6 +112,12 @@
           "exec"
         ],
         "/usr/libexec/mclash-ui cancel-fetch": [
+          "exec"
+        ],
+        "/etc/mclash/domains.request.json": [
+          "write"
+        ],
+        "/usr/libexec/mclash-ui resolve-domains": [
           "exec"
         ]
       }

@@ -64,7 +64,9 @@ assert.equal(messages.localizeGroups({groups:[{name:'🚀 Domestic'}]}).groups[0
 const scopeLine='2026-10-13 10:00:00 Proxy scope: router traffic=Enabled, LAN devices=All devices, IPv6=Disabled; interfaces: br-lan';
 const scopeChinese=messages.logText(scopeLine);
 assert.ok(scopeChinese.startsWith('2026-10-13 10:00:00 \u4ee3\u7406\u8303\u56f4：\u4ee3\u7406\u672c\u673a='));
-assert.ok(scopeChinese.includes('\u4ee3\u7406\u5c40\u57df\u7f51\u8bbe\u5907=\u5168\u90e8\u8bbe\u5907'));
+assert.doesNotMatch(scopeChinese, /LAN devices|\u4ee3\u7406\u5c40\u57df\u7f51\u8bbe\u5907/);
+assert.equal(messages.logText(scopeLine.replace(', LAN devices=All devices', '')), scopeChinese);
+assert.doesNotMatch(messages.logText(scopeLine.replace('All devices','Disabled')), /LAN devices|\u4ee3\u7406\u5c40\u57df\u7f51\u8bbe\u5907/);
 assert.equal(messages.logText('2026-10-13 10:00:01 Startup complete, capture mode: tun'),'2026-10-13 10:00:01 \u542f\u52a8\u5b8c\u6210，\u63a5\u7ba1\u65b9\u5f0f：tun');
 assert.equal(messages.logText('------------------------------------------------------------'),'------------------------------------------------------------');
 

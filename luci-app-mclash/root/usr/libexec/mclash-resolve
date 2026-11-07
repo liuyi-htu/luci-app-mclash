@@ -1,0 +1,96 @@
+#!/bin/sh
+# Resolve validated node domains without exposing controller credentials.
+umask 077
+REQUEST=/etc/mclash/domains.request.json
+RESOLVE=/usr/bin/resolveip
+CURL=/usr/bin/curl
+[ -f "$REQUEST" ] && [ ! -L "$REQUEST" ] || exit 1
+[ "$(wc -c < "$REQUEST")" -le 131072 ] || exit 1
+. /usr/share/libubox/jshn.sh
+json_load "$(cat "$REQUEST")" >/dev/null 2>&1 || exit 1
+active="${MCLASH_DNS_ACTIVE:-0}"
+port=''; secret=''
+if [ "$active" = 1 ]; then
+ # Never fall back to system DNS while capture may return synthetic addresses.
+ [ -x "$CURL" ] && [ -n "$MCLASH_DNS_HOST" ] || { printf '{}\n'; exit 0; }
+ json_select controller >/dev/null 2>&1 || { printf '{}\n'; exit 0; }
+ json_get_var port port; json_get_var secret secret
+ json_select ..
+ case "$port" in ''|*[!0-9]*) printf '{}\n'; exit 0 ;; esac
+ [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || { printf '{}\n'; exit 0; }
+ [ "$(printf '%s' "$secret" | tr -d '\r\n')" = "$secret" ] || exit 1
+else
+ [ -x "$RESOLVE" ] || exit 1
+fi
+json_select domains || exit 1
+json_get_keys keys
+[ "$(printf '%s\n' "$keys" | wc -w)" -le 256 ] || exit 1
+work="$(mktemp -d /tmp/mclash-resolve.XXXXXX)" || exit 1
+pids=''
+cleanup() { for pid in $pids; do kill -TERM "$pid" 2>/dev/null || true; done; for pid in $pids; do wait "$pid" 2>/dev/null; done; rm -rf "$work"; }
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+[ "$active" != 1 ] || printf 'Authorization: Bearer %s\n' "$secret" > "$work/auth"
+count=0
+for key in $keys; do
+ json_get_type type "$key"; [ "$type" = string ] || exit 1
+ json_get_var host "$key"
+ case "$host" in ''|*[!A-Za-z0-9.-]*|[!A-Za-z0-9]*) exit 1 ;; esac
+ [ "${#host}" -le 253 ] || exit 1
+ count=$((count + 1)); printf '%s\n' "$host" > "$work/host.$count"
+done
+start="$(date +%s)"
+worker() {
+ local index="$1" host remaining result child='' family query status keys key type data
+ trap 'test -z "$child" || { kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }; exit 0' HUP INT TERM
+ host="$(cat "$work/host.$index")"
+ for family in 4 6; do
+  remaining=$((10 - $(date +%s) + start)); [ "$remaining" -gt 0 ] || return 0
+  [ "$remaining" -le 5 ] || remaining=5
+  result=''
+  if [ "$active" = 1 ]; then
+   query=A; [ "$family" = 4 ] || query=AAAA
+   "$CURL" --silent --fail --noproxy '*' --connect-timeout "$remaining" --max-time "$remaining" --max-filesize 65536 \
+    --header "@$work/auth" --get --data-urlencode "name=$host" --data-urlencode "type=$query" \
+    --output "$work/response.$index" "http://$MCLASH_DNS_HOST:$port/dns/query" 2>/dev/null & child=$!
+   wait "$child"; status=$?; child=''
+   if [ "$status" = 0 ] && json_load "$(cat "$work/response.$index")" >/dev/null 2>&1; then
+    json_get_var status Status
+    if [ "$status" = 0 ] && json_select Answer >/dev/null 2>&1; then
+     json_get_keys keys
+     for key in $keys; do
+      json_select "$key" >/dev/null 2>&1 || continue
+      json_get_var type type; json_get_var data data
+      json_select ..
+      case "$family:$type:$data" in 4:1:*|6:28:*)
+       case "$data" in ''|*[!0-9A-Fa-f:.]*) ;; *) result="$data"; break ;; esac
+      ;; esac
+     done
+    fi
+   fi
+  else
+   "$RESOLVE" -"$family" -t "$remaining" "$host" > "$work/ip.$index" 2>/dev/null & child=$!
+   wait "$child"; child=''
+   result="$(head -n 1 "$work/ip.$index")"
+  fi
+  case "$result" in ''|*[!0-9A-Fa-f:.]*) ;; *) printf '%s\n' "$result" > "$work/result.$index"; return 0 ;; esac
+ done
+}
+index=1
+while [ "$index" -le "$count" ]; do
+ [ "$(( $(date +%s) - start ))" -lt 10 ] || break
+ pids=''; batch=0
+ while [ "$batch" -lt 4 ] && [ "$index" -le "$count" ]; do
+  (trap - EXIT; worker "$index") & pids="$pids $!"
+  index=$((index + 1)); batch=$((batch + 1))
+ done
+ for pid in $pids; do wait "$pid"; done
+ pids=''
+done
+json_init
+index=1
+while [ "$index" -le "$count" ]; do
+ if [ -s "$work/result.$index" ]; then json_add_string "$(cat "$work/host.$index")" "$(cat "$work/result.$index")"; fi
+ index=$((index + 1))
+done
+json_dump

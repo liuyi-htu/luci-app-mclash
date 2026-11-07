@@ -259,7 +259,7 @@ msgstr "配置或规则资源校验失败"
 
 msgctxt "mclash"
 msgid "Configuration saved; changes take effect when the service starts"
-msgstr "配置已保存，启动服务后生效"
+msgstr "配置已保存，下次启动代理生效"
 
 msgctxt "mclash"
 msgid "Configuration upload is missing"
@@ -1928,3 +1928,91 @@ msgstr "节点链接或 Mihomo YAML"
 msgctxt "mclash"
 msgid "Supports a single node, node lists, full configurations and YAML anchors. UTF-8 files up to 8 MiB."
 msgstr "支持单个节点、节点列表、完整配置及 YAML 锚点。UTF-8 文件最大 8 MiB。"
+
+msgctxt "mclash"
+msgid "Proxy scope: router traffic=%s, IPv6=%s; interfaces: %s"
+msgstr "代理范围：代理本机=%s，IPv6=%s；接口：%s"
+
+msgctxt "mclash"
+msgid "IP / CIDR / IPv4 range"
+msgstr "IP / CIDR / IPv4 范围"
+
+msgctxt "mclash"
+msgid "Select a device or enter a range"
+msgstr "选择设备或输入范围"
+
+msgctxt "mclash"
+msgid "Source IP / range"
+msgstr "来源 IP / 范围"
+
+msgctxt "mclash"
+msgid "Routing policy"
+msgstr "路由策略"
+
+msgctxt "mclash"
+msgid "Global via node"
+msgstr "指定节点全局"
+
+msgctxt "mclash"
+msgid "Select a node"
+msgstr "选择节点"
+
+msgctxt "mclash"
+msgid "Proxy node"
+msgstr "代理节点"
+
+msgctxt "mclash"
+msgid "Unavailable"
+msgstr "不可用"
+
+msgctxt "mclash"
+msgid "Add IP / range"
+msgstr "添加 IP / 范围"
+
+msgctxt "mclash"
+msgid "Default follows existing rules. Global via node sends all captured traffic from the source through the selected node. Specific-node entries take priority over default routing."
+msgstr "默认沿用现有分流规则；指定节点全局将该来源被接管的流量全部交给所选节点，优先于默认分流。"
+
+msgctxt "mclash"
+msgid "Select a source IP or enter a range"
+msgstr "请选择来源 IP 或输入范围"
+
+msgctxt "mclash"
+msgid "Duplicate access-control source"
+msgstr "访问控制的来源重复"
+
+msgctxt "mclash"
+msgid "Invalid access-control policies"
+msgstr "访问控制策略无效"
+
+msgctxt "mclash"
+msgid "Invalid access-control policy; select a source and a valid node"
+msgstr "访问控制策略无效，请选择来源及有效节点"
+
+msgctxt "mclash"
+msgid "Access-control node no longer exists; choose another node or Default"
+msgstr "访问控制节点已不存在，请选择其他节点或默认"
+
+msgctxt "mclash"
+msgid "Default"
+msgstr "默认"
+
+msgctxt "mclash"
+msgid "Resolve node domains to IP"
+msgstr "节点域名转 IP"
+
+msgctxt "mclash"
+msgid "Service is starting or exiting; wait before saving"
+msgstr "服务正在启动或停止，请稍后保存"
+
+msgctxt "mclash"
+msgid "Configuration operation is in progress"
+msgstr "配置正在保存或启动，请稍后重试"
+
+msgctxt "mclash"
+msgid "Failed to snapshot runtime configuration"
+msgstr "无法保存运行配置快照"
+
+msgctxt "mclash"
+msgid "Failed to resolve node domains"
+msgstr "无法解析节点域名"

@@ -132,10 +132,10 @@ async function main() {
   assert.ok(!nodes.some(n=>n.attrs.class==='mclash-note'),'static update hints are removed');
  }
  const nodes = [], notifications = [], calls = [];
- let actualRunning = false, rejectSave = false, networkArgs, controllerArgs, subscriptionArgs, modal, managerRunning, savedText = '# Mclash OpenWrt subscription-names: ["Old subscription","Old subscription 2"]\n# Mclash OpenWrt subscription-urls: ["https://example.org/one","https://example.org/two"]\n# Mclash OpenWrt subscription-prefixes: ["1-","2-"]\n# Mclash OpenWrt subscription-usage: [{"total":100},null]\n# Mclash chain-settings: {}\n# Mclash node-chain 1: {}\n# Mclash node-chains: {}\n# other comment\nmixed-port: 7890\n';
+ let actualRunning = false, actualTransition = false, actualSession = 'first', runtimeText = null, rejectSave = false, networkArgs, controllerArgs, subscriptionArgs, domainRequest, resolutionArgs, modal, managerRunning, savedText = '# Mclash OpenWrt subscription-names: ["Old subscription","Old subscription 2"]\n# Mclash OpenWrt subscription-urls: ["https://example.org/one","https://example.org/two"]\n# Mclash OpenWrt subscription-prefixes: ["1-","2-"]\n# Mclash OpenWrt subscription-usage: [{"total":100},null]\n# Mclash chain-settings: {}\n# Mclash node-chain 1: {}\n# Mclash node-chains: {}\n# other comment\nmixed-port: 7890\n';
  function E(tag, attrs, children) {
   const node = {tag, attrs:attrs || {}, children:children || [], disabled:false, value:(attrs || {}).value || '', checked:false,style:{},
-   addEventListener(type,fn) { (this.listeners || (this.listeners={}))[type]=fn; }, setAttribute(key,value) {this.attrs[key]=value;}, appendChild(child) {this.children.push(child);}};
+   addEventListener(type,fn) { (this.listeners || (this.listeners={}))[type]=fn; }, setAttribute(key,value) {this.attrs[key]=value;}, appendChild(child) {this.children.push(child);},removeChild(child) {this.children.splice(this.children.indexOf(child),1);}};
   Object.defineProperty(node,'textContent',{get() {return this.text || '';},set(value) {this.text=value; this.children=[];}});
   if (tag==='textarea') node.value=(children || []).join('');
   nodes.push(node); return node;
@@ -143,10 +143,12 @@ async function main() {
  const file = {
   exec:async (path,args) => {
    assert.equal(path,'/usr/libexec/mclash-ui'); calls.push(args[0]);
-   if (args[0]==='status') return {code:0,stdout:JSON.stringify({installed:true,running:actualRunning,enabled:false,version:'test'})};
+   if (args[0]==='status') return {code:0,stdout:JSON.stringify({installed:true,running:actualRunning,transition:actualTransition,session:actualSession,enabled:false,version:'test'})};
    if (args[0].startsWith('probe-')) return {code:0,stdout:JSON.stringify({ok:true,ip_supported:false,latency:125})};
    if (args[0]==='devices') return {code:0,stdout:'{"devices":["br-lan","br-guest"]}'};
    if (args[0]==='save' && rejectSave) return {code:1,stderr:'Configuration validation failed'};
+   if (args[0]==='read-runtime') return {code:0,stdout:actualRunning && runtimeText ? runtimeText : savedText};
+   if (args[0]==='resolve-domains') return {code:0,stdout:'{"node.example":"203.0.113.5"}'};
    if (args[0]==='read-config') return {code:0,stdout:savedText};
    if (args[0]==='fetch-subscription') return {code:0,stdout:'# Mclash subscription-usage: upload=10; download=20; total=100; expire=1893456000\nproxies: []\nrules: [MATCH,DIRECT]\n'};
    return {code:0,stdout:'<script>secret</script>'};
@@ -154,18 +156,21 @@ async function main() {
   write:async (path,text,mode) => {
    assert.equal(mode,0o600);
    if (path==='/etc/mclash/config.upload.yaml') {savedText=text; calls.push('write');}
+   else if (path==='/etc/mclash/domains.request.json') {domainRequest=JSON.parse(text);assert.deepEqual(domainRequest.domains,['node.example']);calls.push('resolve-request');}
    else {assert.equal(path,'/etc/mclash/subscription.url'); calls.push('url');}
   }
  };
- const ui = {addNotification:(_title,element,type)=>notifications.push({element,type}),showModal:(title,children)=>{modal={title,children};},hideModal:()=>{modal=null;},
+ const combos = [];
+ const ui = {Combobox: function(value,choices) {assert.equal(typeof choices.hasOwnProperty,'function');this.element=E('input',{},[]);this.element.value=value;this.choices=choices;this.render=()=>this.element;this.getValue=()=>this.element.value;combos.push(this);},addNotification:(_title,element,type)=>notifications.push({element,type}),showModal:(title,children)=>{modal={title,children};},hideModal:()=>{modal=null;},
   tabs:{initTabGroup(panes) {assert.deepEqual(panes.map(n=>n.attrs['data-tab-title']),['Basic settings','Nodes and rules','Runtime configuration','Logs','Update core']);}}};
- const override = {call:(action,text,args)=>{if(action==='formatNodes') return text; if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return Array.from({length:args.count},(_,i)=>'retained airport '+String.fromCharCode(65+i)); if(action==='subscription') {subscriptionArgs=args;return text;}
-  return {controller:'0.0.0.0:9097',groups:[]};}};
- const app = new Function('view','fs','ui','E','_','management','proxy','overrides','template','update','notice','L','probe',source)(
+ const override = {call:(action,text,args)=>{if(action==='resolveNodes') {resolutionArgs=args;return text;} if(action==='formatNodes'||action==='nodeSource') return text; if(action==='nodeDomains') return ['node.example']; if(action==='network') {networkArgs=args;return text;} if(action==='controller') {controllerArgs=args;return text;} if(action==='subscriptionSources') return Array.from({length:args.count},(_,i)=>'retained airport '+String.fromCharCode(65+i)); if(action==='subscription') {subscriptionArgs=args;return text;}
+  if(text.includes('# active-dns-context')) return {controller:'127.0.0.1:9191',secret:'test-runtime-secret',fakeIpRanges:['198.51.100.1/24','fd00:1234::/64'],groups:[],nodes:['Node A','Node B']};
+  return {controller:'0.0.0.0:9097',groups:[],nodes:['Node A','Node B']};}};
+ const app = new Function('view','fs','ui','E','_','management','proxy','overrides','template','update','notice','L','probe','rpc',source)(
   {extend:x=>x},file,ui,E,(text,context)=>context==='mclash'?text:({Edit:'\u7f16\u8f91',Delete:'\u5220\u9664',Cancel:'\u53d6\u6d88',Save:'\u4fdd\u5b58'}[text]||text),{render:(_content,_save,getRunning)=>{managerRunning=getRunning;return {element:E('div'),refresh() {}};}},
-  {render:()=>({element:E('div'),refresh() {}})},override,{text:'rules: [MATCH,DIRECT]'}, {render:()=>({element:E('div'),refresh:async()=>{}})}, {show:(message,type)=>notifications.push({message,type})}, {resource:path=>'/luci-static/resources/'+path}, {run:(_kind,_source,_command)=>_command('probe-'+_kind).then(JSON.parse)});
+  {render:()=>({element:E('div'),refresh() {}})},override,{text:'rules: [MATCH,DIRECT]'}, {render:()=>({element:E('div'),refresh:async()=>{}})}, {show:(message,type)=>notifications.push({message,type})}, {resource:path=>'/luci-static/resources/'+path}, {run:(_kind,_source,_command)=>_command('probe-'+_kind).then(JSON.parse)}, {declare:()=>async()=>({})});
  await app.load();
- app.render([JSON.stringify({installed:true,running:true,enabled:false}),savedText,'{"devices":["br-lan","br-guest"]}']);
+ app.render([JSON.stringify({installed:true,running:true,enabled:false}),savedText,'{"devices":["br-lan","br-guest"]}',{'mac':{name:'Laptop',ipaddrs:['192.168.10.100'],ip6addrs:['fd00::10']}}]);
  const click=async label=>{
   const node=nodes.filter(n=>n.tag==='button' && (n.attrs['aria-label']===label || n.children[0]===label)).at(-1);
   assert.ok(node,label+' must exist'); await node.attrs.click({currentTarget:node});
@@ -267,6 +272,17 @@ async function main() {
  assert.equal(subscriptionArgs.allowEmpty,true,'explicit deletion permits empty filtered groups');
  await click('Add subscription');airportInputs('Subscription name')[0].value='Subscription C';airportInputs('Subscription URL')[0].value='https://example.org/third';
  calls.length=0;await click('Save');assert.equal(calls.filter(c=>c==='fetch-subscription').length,1);assert.equal(airportRows().length,2);
+ await airportClick(0,'Edit');
+ const resolveBox=airportInputs('Resolve node domains to IP')[0];assert.equal(resolveBox.checked,false);
+ calls.length=0;resolveBox.checked=true;await click('Cancel');assert.ok(!calls.includes('write'),'cancel keeps domain preference unchanged');
+ await airportClick(0,'Edit');airportInputs('Resolve node domains to IP')[0].checked=true;
+ calls.length=0;await click('Save');assert.ok(calls.includes('resolve-domains'));assert.ok(calls.includes('resolve-request'));
+ assert.match(savedText,/# Mclash OpenWrt subscription-resolve-domains: \[true,false\]/);
+ assert.match(savedText,/# Mclash OpenWrt subscription-cache:/);
+ calls.length=0;await airportClick(1,'Update');assert.ok(!calls.includes('resolve-domains'),'independent refresh retains the peer resolved addresses');
+ await airportClick(0,'Edit');assert.equal(airportInputs('Resolve node domains to IP')[0].checked,true);
+ airportInputs('Resolve node domains to IP')[0].checked=false;calls.length=0;await click('Save');
+ assert.ok(!calls.includes('resolve-domains'));assert.doesNotMatch(savedText,/# Mclash OpenWrt subscription-cache:/);
  await click('Listen address and port');
  const endpoint=nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']==='Listen address and port').at(-1);
  endpoint.value='127.0.0.1:9091'; await click('Save');
@@ -275,17 +291,48 @@ async function main() {
  nodes.filter(n=>n.tag==='input' && n.attrs['aria-label']==='Listen address and port').at(-1).value='invalid';
  calls.length=0; await click('Save'); assert.ok(!calls.includes('write')); assert.equal(notifications.at(-1).type,'error');
  await click('Proxy scope');
- const accessInput=nodes.filter(n=>n.tag==='textarea' && n.attrs['aria-label']==='Proxy IPs / ranges (one per line)').at(-1);
- assert.equal(accessInput.attrs.wrap,'off'); accessInput.value='192.168.10.100\n192.168.10.0/24';
- await click('Save'); assert.deepEqual(networkArgs.access,['192.168.10.100','192.168.10.0/24']);
- await click('Proxy scope'); assert.equal(nodes.filter(n=>n.tag==='textarea' && n.attrs['aria-label']==='Proxy IPs / ranges (one per line)').at(-1).value,accessInput.value);
- await click('Save'); assert.deepEqual(networkArgs.access,['192.168.10.100','192.168.10.0/24']);
+ await click('Add IP / range');
+ const source1=combos.at(-1); assert.equal(source1.choices['192.168.10.100'],'192.168.10.100 (Laptop)');
+ assert.equal(source1.choices['fd00::10'],'fd00::10 (Laptop)'); source1.element.value='192.168.10.100';
+ await click('Add IP / range'); combos.at(-1).element.value='192.168.10.0/24';
+ const policy=nodes.filter(n=>n.attrs['aria-label']==='Routing policy').at(-1);
+ policy.value='node';policy.listeners.change();
+ const chosen=nodes.filter(n=>n.attrs['aria-label']==='Proxy node').at(-1);assert.equal(chosen.style.display,'');
+ await click('Save');assert.equal(notifications.at(-1).message,'Select a node');
+ chosen.value='Node B';await click('Save');
+ assert.deepEqual(networkArgs.access,['192.168.10.100','192.168.10.0/24']);
+ assert.equal(networkArgs.accessPolicies['192.168.10.0/24'],'Node B');
+ await click('Proxy scope'); assert.equal(combos.at(-2).element.value,'192.168.10.100');assert.equal(combos.at(-1).element.value,'192.168.10.0/24');
+ assert.equal(nodes.filter(n=>n.attrs['aria-label']==='Proxy node').at(-1).value,'Node B');
+ nodes.filter(n=>n.attrs['aria-label']==='Routing policy').at(-1).value='default';
+ await click('Save');assert.equal(networkArgs.accessPolicies,undefined);
+
  actualRunning=true; await nodes.find(n=>n.attrs['data-tab']==='settings').listeners['cbi-tab-active']();
  assert.ok(text(routerTile()).includes('Enabled')); assert.ok(!routerTile().className.includes('mclash-inactive'),'running TProxy restores effective state');
  assert.ok(!nodes.some(n=>n.tag==='button' && n.attrs['aria-label']==='TUN stack'),'stack belongs inside capture dialog');
- calls.length=0; await click('Manage subscriptions');
- assert.ok(!calls.includes('fetch-subscription')); assert.equal(notifications.at(-1).type,'error','actual running service still protects profile');
- assert.ok(nodes.filter(n=>n.mclashConfig).every(n=>n.disabled),'running locks all general configuration tiles');
+ runtimeText=savedText;
+ calls.length=0;await click('Manage subscriptions');assert.equal(modal.title,'Subscriptions','running service permits editing saved preferences');
+ assert.ok(nodes.filter(n=>n.mclashConfig).every(n=>!n.disabled),'running service permits configuration tiles');
+ const frozenPreview=nodes.find(n=>n.tag==='pre').textContent;
+ await airportClick(0,'Update');
+ assert.ok(calls.includes('fetch-subscription'),'running subscriptions can update');
+ runtimeText='# active-dns-context\n'+runtimeText;
+ await airportClick(0,'Edit');airportInputs('Resolve node domains to IP')[0].checked=true;await click('Save');
+ assert.deepEqual(domainRequest.controller,{port:9191,secret:'test-runtime-secret'},'DNS uses runtime controller rather than saved pending settings');
+ assert.deepEqual(resolutionArgs.fakeIpRanges,['198.51.100.1/24','fd00:1234::/64'],'active fake ranges guard conversion');
+ runtimeText=runtimeText.replace('# active-dns-context\n','');
+ await airportClick(0,'Edit');airportInputs('Resolve node domains to IP')[0].checked=false;await click('Save');
+ await airportClick(0,'Edit');airportInputs('Subscription name')[0].value='Pending name';await click('Save');
+ assert.notEqual(savedText,runtimeText,'only the source receives pending metadata changes');
+ await nodes.find(n=>n.attrs['data-tab']==='config').listeners['cbi-tab-active']();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(nodes.find(n=>n.tag==='pre').textContent,frozenPreview,'runtime preview remains on the current session');
+ runtimeText=savedText;actualSession='second';await click('Manage subscriptions');
+ assert.notEqual(nodes.find(n=>n.tag==='pre').textContent,frozenPreview,'a new core session refreshes the runtime snapshot');
+ actualTransition=true;await click('Manage subscriptions');
+ assert.equal(notifications.at(-1).type,'error','transition still protects configuration');
+ assert.ok(nodes.filter(n=>n.mclashConfig).every(n=>n.disabled));
+ actualTransition=false;
  assert.ok(!nodes.find(n=>n.tag==='button' && n.attrs['aria-label']==='Start / stop').disabled,'stop remains usable');
  actualRunning=false; assert.equal(await managerRunning(),false,'manager must not treat UI busy as core running');
  await click('Refresh logs'); assert.equal(nodes.filter(n=>n.tag==='pre')[1].textContent,'<script>secret</script>');
@@ -295,6 +342,6 @@ async function main() {
  calls.length=0; actualRunning=true; await click('Start / stop'); assert.ok(!calls.includes('stop'),'first click only arms stop confirmation');
  assert.equal(nodes.find(n=>n.attrs['aria-label']==='Start / stop').attrs.title,'Click again to stop the service');
  await click('Start / stop'); assert.equal(calls.filter(c=>c==='stop').length,1,'second click stops the running service');
- console.log('Frontend checks passed: stale status, subscription, selected LAN devices and service protection');
+ console.log('Frontend checks passed: deferred saves, runtime preview, per-subscription DNS and transition protection');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

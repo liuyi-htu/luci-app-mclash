@@ -2,6 +2,7 @@
 # Keep the dashboard controller accessible only through selected LAN devices.
 umask 077
 CONFIG=/etc/mclash/config.yaml
+[ ! -s /var/run/mclash/runtime.yaml ] || CONFIG=/var/run/mclash/runtime.yaml
 STATE=/var/run/mclash
 NFT=/usr/sbin/nft
 case "$1" in

@@ -4,6 +4,9 @@ umask 077
 CORE=/usr/bin/mihomo
 INIT=/etc/init.d/mclash
 CONFIG=/etc/mclash/config.yaml
+RUNTIME=/var/run/mclash/runtime.yaml
+CONFIG_LOCK=/var/lock/mclash-config.lock
+config_locked=0
 UPLOAD=/etc/mclash/config.upload.yaml
 LOCK=/var/lock/mclash-ui.lock
 CANDIDATE=''
@@ -14,6 +17,28 @@ TIMEOUT=/usr/libexec/mclash-timeout
 FETCH=''; FETCH_PID=''; FETCH_HEADERS=''
 . /usr/libexec/mclash-lock
 
+active_config() {
+	if service_active && [ -s "$RUNTIME" ]; then printf '%s\n' "$RUNTIME"; else printf '%s\n' "$CONFIG"; fi
+}
+transitioning() {
+	local stamp age
+	stamp="$(cat /var/run/mclash/starting 2>/dev/null)"
+	if [ -n "$stamp" ]; then
+		case "$stamp" in ''|*[!0-9]*) ;; *) age=$(( $(date +%s) - stamp )); [ "$age" -ge 0 ] && [ "$age" -lt 90 ] && return 0 ;; esac
+	fi
+	service_active && ! running
+}
+release_config_lock() {
+	[ "$config_locked" = 1 ] || return 0
+	local previous="$LOCK"
+	LOCK="$CONFIG_LOCK"; mclash_lock_release; LOCK="$previous"
+}
+acquire_config_lock() {
+	local previous="$LOCK" result
+	LOCK="$CONFIG_LOCK"; mclash_lock_acquire config-save; result=$?; LOCK="$previous"
+	[ "$result" = 0 ] || fail 'Configuration operation is in progress'
+	config_locked=1
+}
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 service_active() {
 	local info
@@ -27,7 +52,7 @@ running() {
 	case "$pid" in ''|*[!0-9]*) return 1 ;; esac
 	[ "$(readlink "/proc/$pid/exe")" = "$CORE" ] && kill -0 "$pid" 2>/dev/null || return 1
 	local mode
-	mode="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$CONFIG" | jsonfilter -e '@.mode' 2>/dev/null)"
+	mode="$(sed -n 's/^# Mclash OpenWrt capture: //p' "$(active_config)" | jsonfilter -e '@.mode' 2>/dev/null)"
 	case "$mode" in tun|tproxy) [ "$(cat /var/run/mclash/network.ready 2>/dev/null)" = "$mode" ] ;; *) return 0 ;; esac
 }
 core_version() {
@@ -48,7 +73,7 @@ validate() {
 lock() {
 	mkdir -p /var/lock
 	mclash_lock_acquire "$ACTION" || fail 'Another operation is in progress; retry later'
-	trap '[ -z "$FETCH_PID" ] || kill "$FETCH_PID" 2>/dev/null; rm -f "$UPLOAD" "$REQUEST" "$URLFILE"; [ -z "$CANDIDATE" ] || rm -f "$CANDIDATE"; [ -z "$FETCH" ] || rm -f "$FETCH"; [ -z "$FETCH_HEADERS" ] || rm -f "$FETCH_HEADERS"; mclash_lock_release' EXIT
+	trap '[ -z "$FETCH_PID" ] || kill "$FETCH_PID" 2>/dev/null; rm -f "$UPLOAD" "$REQUEST" "$URLFILE" /etc/mclash/domains.request.json; [ -z "$CANDIDATE" ] || rm -f "$CANDIDATE"; [ -z "$FETCH" ] || rm -f "$FETCH"; [ -z "$FETCH_HEADERS" ] || rm -f "$FETCH_HEADERS"; release_config_lock; mclash_lock_release' EXIT
 	trap 'exit 1' HUP INT TERM
 }
 [ "$#" -eq 1 ] || fail 'Invalid arguments'
@@ -79,6 +104,9 @@ case "$1" in
 		json_add_boolean installed "$installed"
 		json_add_boolean running "$active"
 		json_add_boolean active "$started"
+		transition=0; transitioning && transition=1
+		json_add_boolean transition "$transition"
+		json_add_string session "$(cat /var/run/mclash/core.pid 2>/dev/null)"
 		json_add_boolean enabled "$enabled"
 		json_add_string version "$version"
 		capture="$(cat /var/run/mclash/network.ready 2>/dev/null)"
@@ -96,6 +124,21 @@ case "$1" in
 		done
 		json_close_array; json_dump
 		;;
+	resolve-domains)
+		lock
+		dns_active=0; dns_host=''
+		if service_active || [ -s /var/run/mclash/core.pid ] || [ -s /var/run/mclash/starting ] || [ -s /var/run/mclash/network.ready ]; then
+			dns_active=1
+			dns_host="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/:[0-9]+$/, "", $2); print $2; exit}' "$(active_config)")"
+			case "$dns_host" in 0.0.0.0|localhost|'[::]') dns_host=127.0.0.1 ;; esac
+			address="$(printf '%s' "$dns_host" | tr -d '[]')"
+			case "$address" in ''|*[!0-9A-Fa-f:.]*) dns_host='' ;; *)
+				/sbin/ip -o address show | awk -v address="$address" '$3 == "inet" || $3 == "inet6" {split($4,a,"/"); if(a[1] == address) found=1} END {exit !found}' || dns_host=''
+			;; esac
+		fi
+		MCLASH_DNS_ACTIVE="$dns_active" MCLASH_DNS_HOST="$dns_host" /usr/libexec/mclash-resolve || fail 'Failed to resolve node domains'
+		;;
+	read-runtime) cat "$(active_config)" ;;
 	read-config) [ -f "$CONFIG" ] || fail 'Configuration file does not exist'; /usr/libexec/mclash-config-language "$CONFIG" ;;
 	update-logs) [ ! -f /var/log/mclash-update.log ] || tail -c 524288 /var/log/mclash-update.log | tail -n 100 ;;
 	logs) [ ! -f /var/log/mihomo.log ] || tail -c 524288 /var/log/mihomo.log | tail -n 100 ;;
@@ -106,9 +149,15 @@ case "$1" in
 	validate) lock; validate "$CONFIG"; printf '%s\n' 'Configuration validation passed' ;;
 	save)
 		lock
-		if service_active; then
-			running && fail 'Stop the proxy before changing the configuration'
-			fail 'Service is starting or exiting; stop it before changing the configuration'
+		acquire_config_lock
+		transitioning && fail 'Service is starting or exiting; wait before saving'
+		if running && [ ! -s "$RUNTIME" ]; then
+			mkdir -p /var/run/mclash; chmod 0700 /var/run/mclash
+			CANDIDATE="$(mktemp /var/run/mclash/.runtime.XXXXXX)" || fail 'Failed to snapshot runtime configuration'
+			cp "$CONFIG" "$CANDIDATE" || fail 'Failed to snapshot runtime configuration'
+			chmod 0600 "$CANDIDATE"
+			mv -f "$CANDIDATE" "$RUNTIME" || fail 'Failed to snapshot runtime configuration'
+			CANDIDATE=''
 		fi
 		[ -f "$UPLOAD" ] && [ ! -L "$UPLOAD" ] || fail 'Configuration upload is missing'
 		[ "$(wc -c < "$UPLOAD")" -le 8388608 ] || fail 'The configuration must not exceed 8 MiB'
@@ -171,7 +220,7 @@ case "$1" in
 				;;
 			*) fail 'Invalid proxy operation' ;;
 		esac
-		controller_host="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/:[0-9]+$/, "", $2); print $2; exit}' "$CONFIG")"
+		controller_host="$(awk '$1 == "external-controller:" {gsub(/["\047]/, "", $2); sub(/:[0-9]+$/, "", $2); print $2; exit}' "$(active_config)")"
 		case "$controller_host" in 0.0.0.0|localhost|'[::]') controller_host=127.0.0.1 ;; esac
 		address="$(printf '%s' "$controller_host" | tr -d '[]')"
 		case "$address" in ''|*[!0-9A-Fa-f:.]*) fail 'Invalid local controller address' ;; esac

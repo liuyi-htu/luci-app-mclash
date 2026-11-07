@@ -1,13 +1,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-mclash
-PKG_VERSION:=2.0.5
+PKG_VERSION:=2.0.6
 PKG_RELEASE:=1
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-3.0-only Apache-2.0 MIT
 
 LUCI_TITLE:=Mclash Mihomo manager
-LUCI_DEPENDS:=+luci-base +rpcd-mod-file +jsonfilter +jshn +curl +ca-bundle +firewall4 +nftables-json +ip-full +kmod-tun +kmod-nft-tproxy
+LUCI_DEPENDS:=+luci-base +rpcd-mod-file +jsonfilter +jshn +resolveip +curl +ca-bundle +firewall4 +nftables-json +ip-full +kmod-tun +kmod-nft-tproxy
 LUCI_PKGARCH:=all
 
 define Package/luci-app-mclash/conffiles

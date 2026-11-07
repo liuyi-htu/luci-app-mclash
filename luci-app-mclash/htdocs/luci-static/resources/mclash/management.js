@@ -16,7 +16,7 @@ return baseclass.extend({
 				button.mclashBusy = true; button.disabled = true;
 				return Promise.resolve().then(function() {
 					return Promise.resolve(getRunning()).then(function(active) {
-						if (active) throw new Error(_('Stop the proxy before changing the configuration.', 'mclash'));
+						if (active) throw new Error(_('Service is starting or exiting; wait before saving', 'mclash'));
 						return fn();
 					});
 				}).catch(notice).finally(function() { button.mclashBusy = false; button.disabled = locked; });
@@ -25,7 +25,7 @@ return baseclass.extend({
 		}
 		function change(op, args) {
 			return Promise.resolve(getRunning()).then(function(active) {
-				if (active) throw new Error(_('Stop the proxy before changing the configuration.', 'mclash'));
+				if (active) throw new Error(_('Service is starting or exiting; wait before saving', 'mclash'));
 				return overrides.call(op, getContent(), args);
 			}).then(saveContent).then(function(message) { if (message) notifications.show(message, 'success'); return message; });
 		}

@@ -64,8 +64,11 @@ class InitTest(unittest.TestCase):
             path.write_text('#!/bin/sh\nexit 127\n' if name == 'timeout' else '#!/bin/sh\nexit 0\n')
             path.chmod(0o755)
         self.env = dict(os.environ, PATH=str(fakebin) + ':' + os.environ['PATH'])
+        lock_helper = self.base / 'lock-helper'
+        lock_helper.write_text((ROOT / 'root/usr/libexec/mclash-lock').read_text().replace('/var/lock', str(self.base / 'locks')))
         source = (ROOT / 'root/etc/init.d/mclash').read_text()
         for old, new in {
+            '/var/run/mclash': str(self.base/'runtime'), '/var/lock': str(self.base/'locks'), '/usr/libexec/mclash-lock': str(lock_helper),
             '/usr/bin/mihomo': str(core),
             '/usr/libexec/mclash-timeout': str(ROOT / 'root/usr/libexec/mclash-timeout'),
             '/usr/libexec/mclash-log': str(log),
@@ -91,6 +94,9 @@ start() { echo start; }
         result = self.run_action('start_service')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('instance', result.stdout)
+        self.assertEqual((self.base/'runtime/runtime.yaml').read_text(),self.config.read_text())
+        self.config.write_text('valid pending\n')
+        self.assertNotEqual((self.base/'runtime/runtime.yaml').read_text(),self.config.read_text())
 
     def test_invalid_config_never_starts(self):
         self.config.write_text('broken\n')
